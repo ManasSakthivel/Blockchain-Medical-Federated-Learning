@@ -1,0 +1,191 @@
+{% extends "base.html" %}
+
+{% block title %}My Lab Requests - Patient Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-clipboard-list me-2"></i>My Lab Requests</h2>
+                <div>
+                    <a href="{{ url_for('patient.request_lab_report') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-plus me-2"></i>New Request
+                    </a>
+                    <a href="{{ url_for('patient.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Lab Report Requests</h5>
+                </div>
+                <div class="card-body">
+                    {% if lab_requests %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Request ID</th>
+                                    <th>Doctor</th>
+                                    <th>Lab</th>
+                                    <th>Type</th>
+                                    <th>Priority</th>
+                                    <th>Status</th>
+                                    <th>Requested Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for request in lab_requests %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">#{{ request.id }}</span>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>Dr. {{ request.doctor.first_name }} {{ request.doctor.last_name }}</strong>
+                                            <br>
+                                            <small class="text-muted">{{ request.doctor.specialization }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ request.lab.lab_name }}</strong>
+                                            <br>
+                                            <small class="text-muted">{{ request.lab.specialization }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ request.request_type.title() }}</span>
+                                    </td>
+                                    <td>
+                                        {% if request.priority == 'urgent' %}
+                                            <span class="badge bg-danger">Urgent</span>
+                                        {% elif request.priority == 'high' %}
+                                            <span class="badge bg-warning">High</span>
+                                        {% else %}
+                                            <span class="badge bg-primary">Normal</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if request.status == 'pending' %}
+                                            <span class="badge bg-warning">Pending</span>
+                                        {% elif request.status == 'approved' %}
+                                            <span class="badge bg-info">Approved</span>
+                                        {% elif request.status == 'completed' %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% elif request.status == 'rejected' %}
+                                            <span class="badge bg-danger">Rejected</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <small>{{ request.requested_date.strftime('%Y-%m-%d') }}</small>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('patient.view_lab_request', request_id=request.id) }}" 
+                                               class="btn btn-sm btn-outline-primary">
+                                                <i class="fas fa-eye"></i> View
+                                            </a>
+                                            {% if request.status == 'completed' and request.lab_report_id %}
+                                            <a href="{{ url_for('patient.view_lab_report', report_id=request.lab_report_id) }}" 
+                                               class="btn btn-sm btn-success">
+                                                <i class="fas fa-file-medical"></i> Report
+                                            </a>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="fas fa-clipboard-list fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No lab requests found</h5>
+                        <p class="text-muted">You haven't made any lab report requests yet.</p>
+                        <a href="{{ url_for('patient.request_lab_report') }}" class="btn btn-primary">
+                            <i class="fas fa-plus me-2"></i>Make Your First Request
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    {% if lab_requests %}
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ lab_requests|selectattr('status', 'equalto', 'pending')|list|length }}</h4>
+                            <p class="mb-0">Pending</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-clock fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ lab_requests|selectattr('status', 'equalto', 'completed')|list|length }}</h4>
+                            <p class="mb-0">Completed</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-check-circle fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ lab_requests|selectattr('request_type', 'equalto', 'retinal')|list|length }}</h4>
+                            <p class="mb-0">Retinal Scans</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-eye fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h4 class="mb-0">{{ lab_requests|length }}</h4>
+                            <p class="mb-0">Total</p>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="fas fa-list fa-2x"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

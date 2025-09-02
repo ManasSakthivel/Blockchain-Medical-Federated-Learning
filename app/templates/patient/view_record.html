@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Medical Record Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('patient.records') }}">
+                            <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.book_consultation') }}">
+                            <i class="fas fa-plus-circle"></i> Book Consultation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.profile') }}">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Medical Record Details</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <a href="{{ url_for('patient.records') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Records
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-file-medical"></i> Record #{{ record.id }}
+                                </h5>
+                                <span class="badge bg-primary">{{ record.date.strftime('%Y-%m-%d') }}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-primary">Patient Information</h6>
+                                    <p><strong>Name:</strong> {{ record.patient.user.name }}</p>
+                                    <p><strong>Date of Birth:</strong> {{ record.patient.date_of_birth or 'Not specified' }}</p>
+                                    <p><strong>Gender:</strong> {{ record.patient.gender or 'Not specified' }}</p>
+                                    <p><strong>Blood Type:</strong> {{ record.patient.blood_type or 'Not specified' }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-primary">Doctor Information</h6>
+                                    {% if related_record and related_record.doctor %}
+                                      <p><strong>Doctor:</strong> {{ related_record.doctor.first_name }} {{ related_record.doctor.last_name }}</p>
+                                      <p><strong>Specialization:</strong> {{ related_record.doctor.specialization or 'Not specified' }}</p>
+                                      <p><strong>License:</strong> {{ related_record.doctor.license_number or 'Not specified' }}</p>
+                                    {% else %}
+                                      <p><strong>Doctor:</strong> Not specified</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6 class="text-primary">Medical Information</h6>
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Diagnosis:</strong></label>
+                                        <div class="border rounded p-3 bg-light">
+                                            {{ record.diagnosis or 'No diagnosis recorded' }}
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Treatment:</strong></label>
+                                        <div class="border rounded p-3 bg-light">
+                                            {{ record.treatment or 'No treatment recorded' }}
+                                        </div>
+                                    </div>
+
+                                    {% if record.prescription %}
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Prescription:</strong></label>
+                                        <div class="border rounded p-3 bg-light">
+                                            {{ record.prescription }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+
+                                    {% if record.notes %}
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>Notes:</strong></label>
+                                        <div class="border rounded p-3 bg-light">
+                                            {{ record.notes }}
+                                        </div>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+
+                            <hr>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Created:</strong> {{ record.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    {% if related_record and related_record.updated_at %}
+                                      <p><strong>Last Updated:</strong> {{ related_record.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                    {% else %}
+                                      <p><strong>Last Updated:</strong> Not available</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

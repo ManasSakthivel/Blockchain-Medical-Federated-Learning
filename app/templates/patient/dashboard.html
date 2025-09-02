@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('patient.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.records') }}">
+                            <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_reports') }}">
+                            <i class="fas fa-microscope"></i> Lab Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_requests') }}">
+                            <i class="fas fa-clipboard-list"></i> Lab Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.prescriptions') }}">
+                            <i class="fas fa-pills"></i> Prescriptions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.book_consultation') }}">
+                            <i class="fas fa-plus-circle"></i> Book Consultation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.profile') }}">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Patient Dashboard</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <div class="btn-group me-2">
+                        <a href="{{ url_for('patient.book_consultation') }}" class="btn btn-sm btn-primary">
+                            <i class="fas fa-plus"></i> Book Consultation
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Patient Info Card -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-circle"></i> Patient Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Name:</strong> {{ patient.first_name }} {{ patient.last_name }}</p>
+                                    <p><strong>Email:</strong> {{ patient.user.email }}</p>
+                                    <p><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
+                                    <p><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Blood Group:</strong> {{ patient.blood_group or 'Not specified' }}</p>
+                                    <p><strong>Phone:</strong> {{ patient.phone or 'Not specified' }}</p>
+                                    <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact or 'Not specified' }}</p>
+                                    <p><strong>Address:</strong> {{ patient.address or 'Not specified' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Quick Stats -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-white bg-primary">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ records|length }}</h4>
+                                    <p class="card-text">Medical Records</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-file-medical fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-success">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">{{ consultations|length }}</h4>
+                                    <p class="card-text">Total Consultations</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-calendar-check fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-warning">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">
+                                        <a href="{{ url_for('patient.lab_reports') }}" class="text-white text-decoration-none">
+                                            Lab Reports
+                                        </a>
+                                    </h4>
+                                    <p class="card-text">View Reports</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-microscope fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-white bg-info">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between">
+                                <div>
+                                    <h4 class="card-title">
+                                        <a href="{{ url_for('patient.prescriptions') }}" class="text-white text-decoration-none">
+                                            Prescriptions
+                                        </a>
+                                    </h4>
+                                    <p class="card-text">View Medications</p>
+                                </div>
+                                <div class="align-self-center">
+                                    <i class="fas fa-pills fa-2x"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Medical Records -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-file-medical"></i> Recent Medical Records
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if records %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Type</th>
+                                                <th>Title</th>
+                                                <th>Description</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for record in records[:5] %}
+                                            <tr>
+                                                <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                                                <td>
+                                                    <span class="badge bg-primary">{{ record.record_type.title() }}</span>
+                                                </td>
+                                                <td>{{ record.title }}</td>
+                                                <td>{{ record.description[:50] }}{% if record.description and record.description|length > 50 %}...{% endif %}</td>
+                                                <td>
+                                                    <a href="{{ url_for('patient.view_record', record_id=record.id) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% if records|length > 5 %}
+                                    <div class="text-center mt-3">
+                                        <a href="{{ url_for('patient.records') }}" class="btn btn-primary">View All Records</a>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-muted">No medical records found.</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upcoming Consultations -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-calendar-check"></i> Upcoming Consultations
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% set upcoming_consultations = consultations|selectattr('status', 'equalto', 'scheduled')|list %}
+                            {% if upcoming_consultations %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Time</th>
+                                                <th>Doctor</th>
+                                                <th>Reason</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for consultation in upcoming_consultations[:5] %}
+                                            <tr>
+                                                <td>{{ consultation.date.strftime('%Y-%m-%d') }}</td>
+                                                <td>{{ consultation.time.strftime('%H:%M') }}</td>
+                                                <td>Dr. {{ consultation.doctor.first_name }} {{ consultation.doctor.last_name }}</td>
+                                                <td>{{ consultation.reason[:50] }}{% if consultation.reason|length > 50 %}...{% endif %}</td>
+                                                <td>
+                                                    <span class="badge bg-warning">{{ consultation.status.title() }}</span>
+                                                </td>
+                                                <td>
+                                                    <a href="{{ url_for('patient.view_consultation', consultation_id=consultation.id) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% if upcoming_consultations|length > 5 %}
+                                    <div class="text-center mt-3">
+                                        <a href="{{ url_for('patient.consultations') }}" class="btn btn-primary">View All Consultations</a>
+                                    </div>
+                                {% endif %}
+                            {% else %}
+                                <p class="text-muted">No upcoming consultations found.</p>
+                                <div class="text-center">
+                                    <a href="{{ url_for('patient.book_consultation') }}" class="btn btn-primary">
+                                        <i class="fas fa-plus"></i> Book Consultation
+                                    </a>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

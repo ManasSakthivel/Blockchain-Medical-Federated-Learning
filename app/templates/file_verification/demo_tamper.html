@@ -1,0 +1,255 @@
+{% extends "base.html" %}
+
+{% block title %}File Tampering Demo{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-flask me-2"></i>File Tampering Detection Demo</h2>
+                <a href="{{ url_for('file_verification.upload_file') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-upload me-2"></i>Upload File
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Demo Overview -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Demo Overview</h5>
+                </div>
+                <div class="card-body">
+                    <p>This demo demonstrates how the blockchain-based file verification system detects file tampering. We've created two versions of the same file:</p>
+                    <ul>
+                        <li><strong>Original File:</strong> The authentic file as it was first created</li>
+                        <li><strong>Tampered File:</strong> A modified version with a single byte added</li>
+                    </ul>
+                    <p>Even though the tampering is minimal (just one byte), the SHA-256 hash changes completely, making tampering detection possible.</p>
+                </div>
+            </div>
+
+            <!-- Hash Comparison -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-balance-scale me-2"></i>Hash Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-check-circle me-2"></i>Original File Hash</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>SHA-256 Hash:</strong></label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" value="{{ demo_data.original_hash }}" readonly>
+                                            <button class="btn btn-outline-success" type="button" onclick="copyToClipboard('{{ demo_data.original_hash }}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-success">
+                                        <i class="fas fa-shield-alt me-2"></i>
+                                        <strong>Authentic</strong><br>
+                                        <small>This hash represents the original, unmodified file.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-danger">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="mb-0"><i class="fas fa-times-circle me-2"></i>Tampered File Hash</h6>
+                                </div>
+                                <div class="card-body">
+                                    <div class="mb-3">
+                                        <label class="form-label"><strong>SHA-256 Hash:</strong></label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" value="{{ demo_data.tampered_hash }}" readonly>
+                                            <button class="btn btn-outline-danger" type="button" onclick="copyToClipboard('{{ demo_data.tampered_hash }}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="alert alert-danger">
+                                        <i class="fas fa-exclamation-triangle me-2"></i>
+                                        <strong>Modified</strong><br>
+                                        <small>This hash represents the tampered file.</small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="text-center mt-4">
+                        <div class="alert {% if demo_data.hashes_match %}alert-success{% else %}alert-danger{% endif %}">
+                            <h5>
+                                <i class="fas {% if demo_data.hashes_match %}fa-check-circle{% else %}fa-times-circle{% endif %} me-2"></i>
+                                {% if demo_data.hashes_match %}
+                                    Hashes Match - No Tampering Detected
+                                {% else %}
+                                    Hashes Do Not Match - Tampering Detected!
+                                {% endif %}
+                            </h5>
+                            <p class="mb-0">
+                                {% if demo_data.hashes_match %}
+                                    The files are identical. No modifications detected.
+                                {% else %}
+                                    The files are different. The tampering has been successfully detected by the hash comparison.
+                                {% endif %}
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Content Comparison -->
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-alt me-2"></i>File Content Comparison</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-file me-2"></i>Original File Content</h6>
+                            <div class="border rounded p-3 bg-light">
+                                <pre class="mb-0"><code>This is a demo medical record file for testing integrity verification.</code></pre>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-file-exclamation me-2"></i>Tampered File Content</h6>
+                            <div class="border rounded p-3 bg-light">
+                                <pre class="mb-0"><code>This is a demo medical record file for testing integrity verification.<span class="text-danger">[NULL BYTE]</span></code></pre>
+                            </div>
+                            <small class="text-muted">Note: A null byte (0x00) was added at the end of the file</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- How It Works -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-cogs me-2"></i>How Tampering Detection Works</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-1 me-2"></i>Hash Calculation</h6>
+                        <p class="small">When a file is uploaded, its SHA-256 hash is calculated and stored on the blockchain.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-2 me-2"></i>File Modification</h6>
+                        <p class="small">If someone modifies the file (even by a single byte), the hash changes completely.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-3 me-2"></i>Hash Comparison</h6>
+                        <p class="small">During verification, the current file hash is compared with the original blockchain hash.</p>
+                    </div>
+                    <div class="mb-0">
+                        <h6><i class="fas fa-4 me-2"></i>Tampering Detection</h6>
+                        <p class="small">If hashes don't match, tampering is detected and logged on the blockchain.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Features -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Security Features</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-lock me-2"></i>Avalanche Effect</h6>
+                        <p class="small">SHA-256 has the avalanche effect - a small change in input produces a completely different output.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-link me-2"></i>Blockchain Immutability</h6>
+                        <p class="small">Original hashes stored on the blockchain cannot be altered, ensuring tamper-proof verification.</p>
+                    </div>
+                    <div class="mb-0">
+                        <h6><i class="fas fa-history me-2"></i>Audit Trail</h6>
+                        <p class="small">All verification attempts are permanently recorded for audit and compliance purposes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Try It Yourself -->
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-hands-helping me-2"></i>Try It Yourself</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small">Want to test the verification system with your own files?</p>
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('file_verification.upload_file') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-upload me-2"></i>Upload a File
+                        </a>
+                        <a href="{{ url_for('file_verification.verify_file') }}" class="btn btn-outline-success">
+                            <i class="fas fa-search me-2"></i>Verify a File
+                        </a>
+                        <a href="{{ url_for('file_verification.list_files') }}" class="btn btn-outline-info">
+                            <i class="fas fa-list me-2"></i>View All Files
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Technical Details -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-microchip me-2"></i>Technical Details</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>SHA-256 Hash Function</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Produces 256-bit (32-byte) hash values</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Cryptographically secure</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Avalanche effect - small changes = big differences</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Collision-resistant</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Blockchain Benefits</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>Immutable record of file hashes</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Decentralized verification</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Transparent audit trail</li>
+                                <li><i class="fas fa-check text-success me-2"></i>No single point of failure</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show a temporary success message
+        const button = event.target;
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        
+        setTimeout(function() {
+            button.innerHTML = originalHTML;
+        }, 1000);
+    });
+}
+</script>
+{% endblock %}

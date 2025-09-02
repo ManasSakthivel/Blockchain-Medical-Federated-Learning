@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Consultation Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.records') }}">
+                            <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('patient.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.book_consultation') }}">
+                            <i class="fas fa-plus-circle"></i> Book Consultation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.profile') }}">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Consultation Details</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <a href="{{ url_for('patient.consultations') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Consultations
+                    </a>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-calendar-check"></i> Consultation #{{ consultation.id }}
+                                </h5>
+                                <span class="badge bg-primary">{{ consultation.date.strftime('%Y-%m-%d') }}</span>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <h6 class="text-primary">Consultation Information</h6>
+                                    <p><strong>Date:</strong> {{ consultation.date.strftime('%Y-%m-%d') }}</p>
+                                    <p><strong>Time:</strong> {{ consultation.time }}</p>
+                                    <p><strong>Status:</strong> 
+                                        {% if consultation.status == 'scheduled' %}
+                                            <span class="badge bg-warning">Scheduled</span>
+                                        {% elif consultation.status == 'completed' %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% elif consultation.status == 'cancelled' %}
+                                            <span class="badge bg-danger">Cancelled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ consultation.status.title() }}</span>
+                                        {% endif %}
+                                    </p>
+                                    <p><strong>Reason:</strong> {{ consultation.reason }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <h6 class="text-primary">Doctor Information</h6>
+                                    <p><strong>Doctor:</strong> {{ consultation.doctor.user.name }}</p>
+                                    <p><strong>Specialization:</strong> {{ consultation.doctor.specialization or 'Not specified' }}</p>
+                                    <p><strong>License:</strong> {{ consultation.doctor.license_number or 'Not specified' }}</p>
+                                    <p><strong>Phone:</strong> {{ consultation.doctor.phone or 'Not specified' }}</p>
+                                </div>
+                            </div>
+
+                            {% if consultation.notes %}
+                            <hr>
+                            <div class="row">
+                                <div class="col-12">
+                                    <h6 class="text-primary">Doctor's Notes</h6>
+                                    <div class="border rounded p-3 bg-light">
+                                        {{ consultation.notes }}
+                                    </div>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <hr>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Created:</strong> {{ consultation.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Last Updated:</strong> {{ consultation.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

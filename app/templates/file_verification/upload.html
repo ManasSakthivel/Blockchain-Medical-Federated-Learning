@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Secure File Upload - Blockchain Verification{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-shield-alt me-2"></i>Secure File Upload with Blockchain Verification</h2>
+                <a href="{{ url_for('file_verification.list_files') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-list me-2"></i>View All Files
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-upload me-2"></i>Upload File with Integrity Protection</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="patient_email" class="form-label">Patient Email *</label>
+                                    <select class="form-select" id="patient_email" name="patient_email" required>
+                                        <option value="">Select Patient</option>
+                                        {% for patient in patients %}
+                                        <option value="{{ patient.user.email }}">
+                                            {{ patient.user.email }} - {{ patient.first_name }} {{ patient.last_name }}
+                                        </option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label for="category" class="form-label">File Category</label>
+                                    <select class="form-select" id="category" name="category">
+                                        <option value="medical">Medical Record</option>
+                                        <option value="lab_report">Lab Report</option>
+                                        <option value="prescription">Prescription</option>
+                                        <option value="imaging">Medical Imaging</option>
+                                        <option value="document">Document</option>
+                                        <option value="other">Other</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="description" class="form-label">File Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" 
+                                      placeholder="Describe the file content and purpose..."></textarea>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Select File *</label>
+                            <input type="file" class="form-control" id="file" name="file" required>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Supported formats: Images (PNG, JPG, GIF, BMP, TIFF), Documents (PDF, DOC, DOCX, TXT, CSV, XLSX), 
+                                Archives (ZIP, RAR), Videos (MP4, AVI, MOV). Max size: 50MB
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <h6><i class="fas fa-shield-alt me-2"></i>Security Features</h6>
+                            <ul class="mb-0">
+                                <li><strong>SHA-256 Hashing:</strong> File integrity is protected using cryptographic hashing</li>
+                                <li><strong>IPFS Storage:</strong> Files are stored on decentralized IPFS network</li>
+                                <li><strong>Blockchain Verification:</strong> File hashes are stored on immutable blockchain</li>
+                                <li><strong>Tamper Detection:</strong> Any modification to the file will be detected during verification</li>
+                            </ul>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" onclick="history.back()">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Upload Securely
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>How It Works</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-1 me-2"></i>File Upload</h6>
+                        <p class="small">Your file is uploaded and a SHA-256 hash is calculated to ensure integrity.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-2 me-2"></i>IPFS Storage</h6>
+                        <p class="small">The file is stored on IPFS (InterPlanetary File System) for decentralized access.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-3 me-2"></i>Blockchain Recording</h6>
+                        <p class="small">The file hash and metadata are recorded on the blockchain for immutable verification.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-4 me-2"></i>Verification Ready</h6>
+                        <p class="small">Anyone can verify the file's integrity by comparing its current hash with the blockchain record.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-exclamation-triangle me-2"></i>Important Notes</h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Files are encrypted and stored securely</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>Only authorized users can access files</li>
+                        <li class="mb-2"><i class="fas fa-check text-success me-2"></i>All uploads are logged and auditable</li>
+                        <li class="mb-0"><i class="fas fa-check text-success me-2"></i>File integrity is guaranteed by blockchain</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('uploadForm').addEventListener('submit', function(e) {
+    const fileInput = document.getElementById('file');
+    const file = fileInput.files[0];
+    
+    if (file) {
+        const maxSize = 50 * 1024 * 1024; // 50MB
+        if (file.size > maxSize) {
+            e.preventDefault();
+            alert('File size exceeds 50MB limit. Please choose a smaller file.');
+            return;
+        }
+        
+        // Show loading state
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
+        submitBtn.disabled = true;
+    }
+});
+
+// File type validation
+document.getElementById('file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const allowedTypes = ['image/', 'application/pdf', 'application/msword', 
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'text/', 'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'application/zip', 'application/x-rar-compressed',
+                            'video/'];
+        
+        const isValidType = allowedTypes.some(type => file.type.startsWith(type));
+        
+        if (!isValidType) {
+            alert('File type not supported. Please choose a different file.');
+            this.value = '';
+        }
+    }
+});
+</script>
+{% endblock %}

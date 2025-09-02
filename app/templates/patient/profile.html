@@ -1,0 +1,196 @@
+{% extends "base.html" %}
+
+{% block title %}Patient Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.records') }}">
+                            <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.book_consultation') }}">
+                            <i class="fas fa-plus-circle"></i> Book Consultation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('patient.profile') }}">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Patient Profile</h1>
+            </div>
+
+            <div class="row">
+                <div class="col-md-8">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-edit"></i> Edit Profile Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="date_of_birth" class="form-label">Date of Birth</label>
+                                            <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" 
+                                                   value="{{ patient.date_of_birth or '' }}">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="gender" class="form-label">Gender</label>
+                                            <select class="form-select" id="gender" name="gender">
+                                                <option value="">Select gender...</option>
+                                                <option value="Male" {% if patient.gender == 'Male' %}selected{% endif %}>Male</option>
+                                                <option value="Female" {% if patient.gender == 'Female' %}selected{% endif %}>Female</option>
+                                                <option value="Other" {% if patient.gender == 'Other' %}selected{% endif %}>Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="blood_type" class="form-label">Blood Type</label>
+                                            <select class="form-select" id="blood_type" name="blood_type">
+                                                <option value="">Select blood type...</option>
+                                                <option value="A+" {% if patient.blood_type == 'A+' %}selected{% endif %}>A+</option>
+                                                <option value="A-" {% if patient.blood_type == 'A-' %}selected{% endif %}>A-</option>
+                                                <option value="B+" {% if patient.blood_type == 'B+' %}selected{% endif %}>B+</option>
+                                                <option value="B-" {% if patient.blood_type == 'B-' %}selected{% endif %}>B-</option>
+                                                <option value="AB+" {% if patient.blood_type == 'AB+' %}selected{% endif %}>AB+</option>
+                                                <option value="AB-" {% if patient.blood_type == 'AB-' %}selected{% endif %}>AB-</option>
+                                                <option value="O+" {% if patient.blood_type == 'O+' %}selected{% endif %}>O+</option>
+                                                <option value="O-" {% if patient.blood_type == 'O-' %}selected{% endif %}>O-</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="phone" class="form-label">Phone Number</label>
+                                            <input type="tel" class="form-control" id="phone" name="phone" 
+                                                   value="{{ patient.phone or '' }}" placeholder="(123) 456-7890">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="address" class="form-label">Address</label>
+                                    <textarea class="form-control" id="address" name="address" rows="3" 
+                                              placeholder="Enter your full address">{{ patient.address or '' }}</textarea>
+                                </div>
+
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="emergency_contact" class="form-label">Emergency Contact Name</label>
+                                            <input type="text" class="form-control" id="emergency_contact" name="emergency_contact" 
+                                                   value="{{ patient.emergency_contact or '' }}" placeholder="Emergency contact name">
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="emergency_phone" class="form-label">Emergency Contact Phone</label>
+                                            <input type="tel" class="form-control" id="emergency_phone" name="emergency_phone" 
+                                                   value="{{ patient.emergency_phone or '' }}" placeholder="(123) 456-7890">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="medical_history" class="form-label">Medical History</label>
+                                    <textarea class="form-control" id="medical_history" name="medical_history" rows="4" 
+                                              placeholder="Please list any relevant medical history, surgeries, or chronic conditions">{{ patient.medical_history or '' }}</textarea>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="allergies" class="form-label">Allergies</label>
+                                    <textarea class="form-control" id="allergies" name="allergies" rows="3" 
+                                              placeholder="Please list any allergies (medications, foods, environmental, etc.)">{{ patient.allergies or '' }}</textarea>
+                                </div>
+
+                                <div class="d-grid">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Update Profile
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-md-4">
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-user-circle"></i> Current Information
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> {{ patient.user.name }}</p>
+                            <p><strong>Email:</strong> {{ patient.user.email }}</p>
+                            <p><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
+                            <p><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
+                            <p><strong>Blood Type:</strong> {{ patient.blood_type or 'Not specified' }}</p>
+                            <p><strong>Phone:</strong> {{ patient.phone or 'Not specified' }}</p>
+                            <p><strong>Emergency Contact:</strong> {{ patient.emergency_contact or 'Not specified' }}</p>
+                            <p><strong>Emergency Phone:</strong> {{ patient.emergency_phone or 'Not specified' }}</p>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h6 class="card-title mb-0">
+                                <i class="fas fa-info-circle"></i> Account Information
+                            </h6>
+                        </div>
+                        <div class="card-body">
+                            <ul class="list-unstyled small">
+                                <li class="mb-2">
+                                    <i class="fas fa-calendar text-success"></i>
+                                    Member since {{ patient.user.created_at.strftime('%B %Y') if patient.user.created_at else 'Recently' }}
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-user-md text-info"></i>
+                                    Your assigned doctor can view your records
+                                </li>
+                                <li class="mb-2">
+                                    <i class="fas fa-bell text-warning"></i>
+                                    Get notified about appointments and updates
+                                </li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

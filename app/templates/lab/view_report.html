@@ -1,0 +1,143 @@
+{% extends "base.html" %}
+
+{% block title %}View Lab Report{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Lab Report Details</h1>
+                <a href="{{ url_for('lab.reports') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Reports
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">Report Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Report ID:</strong> #{{ report.id }}</p>
+                            <p><strong>Report Type:</strong> 
+                                <span class="badge bg-primary">{{ report.report_type.title() }}</span>
+                            </p>
+                            <p><strong>Status:</strong> 
+                                <span class="badge {% if report.status == 'completed' %}bg-success{% elif report.status == 'pending' %}bg-warning{% else %}bg-info{% endif %}">
+                                    {{ report.status.title() }}
+                                </span>
+                            </p>
+                            <p><strong>Amount Charged:</strong> ₹{{ "%.2f"|format(report.amount_charged) }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Created:</strong> {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p><strong>Updated:</strong> {{ report.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            <p><strong>Payment Status:</strong> 
+                                <span class="badge {% if report.is_paid %}bg-success{% else %}bg-warning{% endif %}">
+                                    {{ 'Paid' if report.is_paid else 'Pending' }}
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {% if report.diagnosis %}
+                    <div class="mt-3">
+                        <h6>AI Diagnosis:</h6>
+                        <div class="alert alert-info">
+                            <strong>{{ report.diagnosis }}</strong>
+                            {% if report.confidence_score %}
+                                <br><small class="text-muted">Confidence: {{ "%.1f"|format(report.confidence_score * 100) }}%</small>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endif %}
+                    
+                    {% if report.findings %}
+                    <div class="mt-3">
+                        <h6>Findings:</h6>
+                        <p class="text-muted">{{ report.findings }}</p>
+                    </div>
+                    {% endif %}
+                    
+                    {% if report.recommendations %}
+                    <div class="mt-3">
+                        <h6>Recommendations:</h6>
+                        <p class="text-muted">{{ report.recommendations }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            {% if report.image_path %}
+            <div class="card shadow mt-4">
+                <div class="card-header">
+                    <h5 class="mb-0">Uploaded Image</h5>
+                </div>
+                <div class="card-body text-center">
+                    <img src="{{ url_for('static', filename=report.image_path) }}" 
+                         alt="Lab Report Image" 
+                         class="img-fluid rounded" 
+                         style="max-height: 400px;">
+                </div>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">Patient Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ report.patient.first_name }} {{ report.patient.last_name }}</p>
+                    <p><strong>Email:</strong> {{ report.patient.user.email }}</p>
+                    <p><strong>Phone:</strong> {{ report.patient.phone }}</p>
+                    <p><strong>Blood Group:</strong> {{ report.patient.blood_group or 'Not specified' }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Doctor Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> Dr. {{ report.doctor.first_name }} {{ report.doctor.last_name }}</p>
+                    <p><strong>Specialization:</strong> {{ report.doctor.specialization }}</p>
+                    <p><strong>Email:</strong> {{ report.doctor.user.email }}</p>
+                    <p><strong>Phone:</strong> {{ report.doctor.phone }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Lab Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Lab Name:</strong> {{ report.lab.lab_name }}</p>
+                    <p><strong>License:</strong> {{ report.lab.license_number }}</p>
+                    <p><strong>Specialization:</strong> {{ report.lab.specialization }}</p>
+                </div>
+            </div>
+
+            {% if report.consultation %}
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Related Consultation</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Date:</strong> {{ report.consultation.date.strftime('%Y-%m-%d') }}</p>
+                    <p><strong>Time:</strong> {{ report.consultation.time.strftime('%H:%M') }}</p>
+                    <p><strong>Reason:</strong> {{ report.consultation.reason }}</p>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

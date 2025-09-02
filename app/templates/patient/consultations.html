@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+
+{% block title %}Consultations{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.records') }}">
+                            <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_reports') }}">
+                            <i class="fas fa-microscope"></i> Lab Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_requests') }}">
+                            <i class="fas fa-clipboard-list"></i> Lab Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.prescriptions') }}">
+                            <i class="fas fa-pills"></i> Prescriptions
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('patient.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.book_consultation') }}">
+                            <i class="fas fa-plus-circle"></i> Book Consultation
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.profile') }}">
+                            <i class="fas fa-user"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">Consultations</h1>
+                <div class="btn-toolbar mb-2 mb-md-0">
+                    <a href="{{ url_for('patient.book_consultation') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Book New Consultation
+                    </a>
+                </div>
+            </div>
+
+            {% if consultations %}
+                <div class="table-responsive">
+                    <table class="table table-striped">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Time</th>
+                                <th>Doctor</th>
+                                <th>Specialization</th>
+                                <th>Reason</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for consultation in consultations %}
+                            <tr>
+                                <td>{{ consultation.date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ consultation.time }}</td>
+                                <td>Dr. {{ consultation.doctor.first_name }} {{ consultation.doctor.last_name }}</td>
+                                <td>{{ consultation.doctor.specialization or 'Not specified' }}</td>
+                                <td>{{ consultation.reason[:50] }}{% if consultation.reason|length > 50 %}...{% endif %}</td>
+                                <td>
+                                    {% if consultation.status == 'scheduled' %}
+                                        <span class="badge bg-warning">Scheduled</span>
+                                    {% elif consultation.status == 'completed' %}
+                                        <span class="badge bg-success">Completed</span>
+                                    {% elif consultation.status == 'cancelled' %}
+                                        <span class="badge bg-danger">Cancelled</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">{{ consultation.status.title() }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="{{ url_for('patient.view_consultation', consultation_id=consultation.id) }}" class="btn btn-sm btn-outline-primary">
+                                        <i class="fas fa-eye"></i> View
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-calendar-check fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Consultations Found</h4>
+                    <p class="text-muted">You haven't booked any consultations yet.</p>
+                    <a href="{{ url_for('patient.book_consultation') }}" class="btn btn-primary">
+                        <i class="fas fa-plus"></i> Book Your First Consultation
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

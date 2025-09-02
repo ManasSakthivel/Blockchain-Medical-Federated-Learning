@@ -1,0 +1,158 @@
+{% extends "base.html" %}
+
+{% block title %}Process Request - Lab Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-cog me-2"></i>Process Lab Request</h2>
+                <a href="{{ url_for('lab.requests') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Requests
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-microscope me-2"></i>Process Request #{{ lab_request.id }}</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Request Details -->
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-user me-2"></i>Patient Information</h6>
+                            <p><strong>Name:</strong> {{ lab_request.patient.first_name }} {{ lab_request.patient.last_name }}</p>
+                            <p><strong>Email:</strong> {{ lab_request.patient.user.email }}</p>
+                            <p><strong>Phone:</strong> {{ lab_request.patient.phone }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-user-md me-2"></i>Doctor Information</h6>
+                            <p><strong>Name:</strong> Dr. {{ lab_request.doctor.first_name }} {{ lab_request.doctor.last_name }}</p>
+                            <p><strong>Specialization:</strong> {{ lab_request.doctor.specialization }}</p>
+                            <p><strong>Email:</strong> {{ lab_request.doctor.user.email }}</p>
+                        </div>
+                    </div>
+
+                    <div class="row mb-4">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-clipboard me-2"></i>Request Details</h6>
+                            <p><strong>Type:</strong> <span class="badge bg-info">{{ lab_request.request_type.title() }}</span></p>
+                            <p><strong>Priority:</strong> 
+                                {% if lab_request.priority == 'urgent' %}
+                                    <span class="badge bg-danger">Urgent</span>
+                                {% elif lab_request.priority == 'high' %}
+                                    <span class="badge bg-warning">High</span>
+                                {% else %}
+                                    <span class="badge bg-primary">Normal</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Requested Date:</strong> {{ lab_request.requested_date.strftime('%Y-%m-%d') }}</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-comment me-2"></i>Reason</h6>
+                            <p>{{ lab_request.reason }}</p>
+                        </div>
+                    </div>
+
+                    <hr>
+
+                    <!-- Processing Form -->
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Upload Scan Image</label>
+                            <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+                            <div class="form-text">Upload the scan image for AI diagnosis</div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="findings" class="form-label">Findings</label>
+                                <textarea class="form-control" id="findings" name="findings" rows="4" placeholder="Enter clinical findings..."></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="recommendations" class="form-label">Recommendations</label>
+                                <textarea class="form-control" id="recommendations" name="recommendations" rows="4" placeholder="Enter recommendations..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Additional Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Any additional notes..."></textarea>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-check me-2"></i>Complete Report & Send to Patient
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- AI Diagnosis Info -->
+            {% if lab_request.request_type == 'retinal' %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-robot me-2"></i>AI Diagnosis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-brain me-2"></i>Retinal Disease Classification</h6>
+                        <p class="mb-2">AI will automatically classify the retinal image into one of 8 categories:</p>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success me-2"></i>Normal</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Diabetic Retinopathy</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Glaucoma</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Cataract</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Age-related Macular Degeneration</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Hypertension</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Pathological Myopia</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Other Diseases</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Pricing Info -->
+            <div class="card shadow">
+                <div class="card-header bg-warning text-white">
+                    <h5 class="mb-0"><i class="fas fa-rupee-sign me-2"></i>Pricing</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-info-circle me-2"></i>Service Charges</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-arrow-right me-2"></i>Retinal Scan: ₹1000</li>
+                            <li><i class="fas fa-arrow-right me-2"></i>Blood Test: ₹500</li>
+                            <li><i class="fas fa-arrow-right me-2"></i>Other Tests: ₹300</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Preview image before upload
+document.getElementById('image').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // You can add image preview functionality here
+            console.log('Image selected:', file.name);
+        };
+        reader.readAsDataURL(file);
+    }
+});
+</script>
+{% endblock %} 

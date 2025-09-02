@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% block title %}Prescriptions{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-pills"></i> Prescriptions
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item active">Prescriptions</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{{ url_for('doctor.dashboard') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Dashboard
+                    </a>
+                </div>
+            </div>
+
+            <!-- Prescriptions Table -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-file-medical"></i> All Prescriptions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            {% if prescriptions %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th>Patient</th>
+                                                <th>Medication</th>
+                                                <th>Dosage</th>
+                                                <th>Frequency</th>
+                                                <th>Duration</th>
+                                                <th>Status</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for prescription in prescriptions %}
+                                            <tr>
+                                                <td>{{ prescription.prescribed_date.strftime('%Y-%m-%d') }}</td>
+                                                <td>
+                                                    <a href="{{ url_for('doctor.view_patient', patient_id=prescription.patient.id) }}" class="text-decoration-none">
+                                                        {{ prescription.patient.first_name }} {{ prescription.patient.last_name }}
+                                                    </a>
+                                                </td>
+                                                <td>{{ prescription.medication_name }}</td>
+                                                <td>{{ prescription.dosage }}</td>
+                                                <td>{{ prescription.frequency }}</td>
+                                                <td>{{ prescription.duration }}</td>
+                                                <td>
+                                                    {% if prescription.is_active %}
+                                                        <span class="badge bg-success">Active</span>
+                                                    {% else %}
+                                                        <span class="badge bg-secondary">Inactive</span>
+                                                    {% endif %}
+                                                </td>
+                                                <td>
+                                                    <a href="{{ url_for('doctor.view_prescription', prescription_id=prescription.id) }}" class="btn btn-sm btn-outline-primary">
+                                                        <i class="fas fa-eye"></i> View
+                                                    </a>
+                                                </td>
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% else %}
+                                <div class="text-center py-4">
+                                    <i class="fas fa-pills fa-3x text-muted mb-3"></i>
+                                    <h5 class="text-muted">No Prescriptions Found</h5>
+                                    <p class="text-muted">No prescriptions have been issued for your patients yet.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

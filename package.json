@@ -1,0 +1,28 @@
+{
+  "name": "ehr-blockchain-flask",
+  "version": "1.0.0",
+  "description": "EHR Blockchain System - Flask Version",
+  "main": "index.js",
+  "scripts": {
+    "test": "truffle test",
+    "compile": "truffle compile",
+    "migrate": "truffle migrate --network development",
+    "migrate:reset": "truffle migrate --reset --network development"
+  },
+  "keywords": [
+    "ehr",
+    "blockchain",
+    "ethereum",
+    "flask",
+    "medical",
+    "healthcare"
+  ],
+  "author": "Your Name",
+  "license": "MIT",
+  "devDependencies": {
+    "truffle": "^5.8.0"
+  },
+  "dependencies": {
+    "web3": "^4.0.0"
+  }
+} 

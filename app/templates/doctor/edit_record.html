@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+
+{% block title %}Edit Medical Record{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-edit"></i> Edit Medical Record
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.patients') }}">Patients</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.view_patient', patient_id=record.patient.id) }}">{{ record.patient.first_name }} {{ record.patient.last_name }}</a></li>
+                            <li class="breadcrumb-item active">Edit Record</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{{ url_for('doctor.view_patient', patient_id=record.patient.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Patient
+                    </a>
+                </div>
+            </div>
+
+            <!-- Patient Info -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-injured"></i> Patient Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Name:</strong> {{ record.patient.first_name }} {{ record.patient.last_name }}</p>
+                                    <p><strong>Date of Birth:</strong> {{ record.patient.date_of_birth.strftime('%Y-%m-%d') }}</p>
+                                    <p><strong>Gender:</strong> {{ record.patient.gender.title() }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Phone:</strong> {{ record.patient.phone }}</p>
+                                    <p><strong>Email:</strong> {{ record.patient.user.email }}</p>
+                                    <p><strong>Blood Group:</strong> {{ record.patient.blood_group or 'Not specified' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Edit Record Form -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-file-medical"></i> Edit Medical Record
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="record_type" class="form-label">Record Type *</label>
+                                            <select class="form-select" id="record_type" name="record_type" required>
+                                                <option value="consultation" {% if record.record_type == 'consultation' %}selected{% endif %}>Consultation</option>
+                                                <option value="lab_report" {% if record.record_type == 'lab_report' %}selected{% endif %}>Lab Report</option>
+                                                <option value="prescription" {% if record.record_type == 'prescription' %}selected{% endif %}>Prescription</option>
+                                                <option value="diagnosis" {% if record.record_type == 'diagnosis' %}selected{% endif %}>Diagnosis</option>
+                                                <option value="treatment" {% if record.record_type == 'treatment' %}selected{% endif %}>Treatment Plan</option>
+                                                <option value="follow_up" {% if record.record_type == 'follow_up' %}selected{% endif %}>Follow-up</option>
+                                                <option value="other" {% if record.record_type == 'other' %}selected{% endif %}>Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="title" class="form-label">Title *</label>
+                                            <input type="text" class="form-control" id="title" name="title" value="{{ record.title }}" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="5" placeholder="Enter detailed description of the medical record...">{{ record.description or '' }}</textarea>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <a href="{{ url_for('doctor.view_patient', patient_id=record.patient.id) }}" class="btn btn-secondary me-2">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Update Record
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}Create Medical Record - {{ patient.first_name }} {{ patient.last_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-plus"></i> Create Medical Record
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.patients') }}">Patients</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.view_patient', patient_id=patient.id) }}">{{ patient.first_name }} {{ patient.last_name }}</a></li>
+                            <li class="breadcrumb-item active">Create Record</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{{ url_for('doctor.view_patient', patient_id=patient.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Patient
+                    </a>
+                </div>
+            </div>
+
+            <!-- Patient Info -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-injured"></i> Patient Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Name:</strong> {{ patient.first_name }} {{ patient.last_name }}</p>
+                                    <p><strong>Date of Birth:</strong> {{ patient.date_of_birth.strftime('%Y-%m-%d') }}</p>
+                                    <p><strong>Gender:</strong> {{ patient.gender.title() }}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Phone:</strong> {{ patient.phone }}</p>
+                                    <p><strong>Email:</strong> {{ patient.user.email }}</p>
+                                    <p><strong>Blood Group:</strong> {{ patient.blood_group or 'Not specified' }}</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Create Record Form -->
+            <div class="row">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-file-medical"></i> New Medical Record
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="record_type" class="form-label">Record Type *</label>
+                                            <select class="form-select" id="record_type" name="record_type" required>
+                                                <option value="">Select record type</option>
+                                                <option value="consultation">Consultation</option>
+                                                <option value="lab_report">Lab Report</option>
+                                                <option value="prescription">Prescription</option>
+                                                <option value="diagnosis">Diagnosis</option>
+                                                <option value="treatment">Treatment Plan</option>
+                                                <option value="follow_up">Follow-up</option>
+                                                <option value="other">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="title" class="form-label">Title *</label>
+                                            <input type="text" class="form-control" id="title" name="title" required>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="description" class="form-label">Description</label>
+                                    <textarea class="form-control" id="description" name="description" rows="5" placeholder="Enter detailed description of the medical record..."></textarea>
+                                </div>
+                                <div class="d-flex justify-content-end">
+                                    <a href="{{ url_for('doctor.view_patient', patient_id=patient.id) }}" class="btn btn-secondary me-2">
+                                        <i class="fas fa-times"></i> Cancel
+                                    </a>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Create Record
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

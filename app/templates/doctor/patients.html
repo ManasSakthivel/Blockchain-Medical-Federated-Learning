@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+
+{% block title %}My Patients{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+            <div class="position-sticky pt-3">
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('doctor.dashboard') }}">
+                            <i class="fas fa-tachometer-alt"></i> Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="{{ url_for('doctor.patients') }}">
+                            <i class="fas fa-users"></i> Patients
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('doctor.consultations') }}">
+                            <i class="fas fa-calendar-check"></i> Consultations
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('doctor.schedule') }}">
+                            <i class="fas fa-calendar-alt"></i> Schedule
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('doctor.profile') }}">
+                            <i class="fas fa-user-md"></i> Profile
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">My Patients</h1>
+            </div>
+
+            {% if patients %}
+                <div class="row">
+                    {% for patient in patients %}
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h6 class="card-title mb-0">
+                                    <i class="fas fa-user"></i> {{ patient.user.name }}
+                                </h6>
+                            </div>
+                            <div class="card-body">
+                                <p><strong>Email:</strong> {{ patient.user.email }}</p>
+                                <p><strong>Date of Birth:</strong> {{ patient.date_of_birth or 'Not specified' }}</p>
+                                <p><strong>Gender:</strong> {{ patient.gender or 'Not specified' }}</p>
+                                <p><strong>Blood Type:</strong> {{ patient.blood_type or 'Not specified' }}</p>
+                                <p><strong>Phone:</strong> {{ patient.phone or 'Not specified' }}</p>
+                            </div>
+                            <div class="card-footer">
+                                <a href="{{ url_for('doctor.view_patient', patient_id=patient.id) }}" class="btn btn-primary btn-sm">
+                                    <i class="fas fa-eye"></i> View Details
+                                </a>
+                                <a href="{{ url_for('doctor.create_record', patient_id=patient.id) }}" class="btn btn-success btn-sm">
+                                    <i class="fas fa-plus"></i> Add Record
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="text-center py-5">
+                    <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                    <h4 class="text-muted">No Patients Found</h4>
+                    <p class="text-muted">Patients will appear here after they book consultations with you.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

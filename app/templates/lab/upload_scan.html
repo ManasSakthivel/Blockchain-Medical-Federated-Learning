@@ -1,0 +1,179 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Scan - Lab Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-upload me-2"></i>Upload Scan with AI Diagnosis</h2>
+                <a href="{{ url_for('lab.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-microscope me-2"></i>Upload Retinal Scan</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="uploadForm">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="patient_email" class="form-label">Patient Email</label>
+                                <input type="email" class="form-control" id="patient_email" name="patient_email" required>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="doctor_email" class="form-label">Doctor Email</label>
+                                <input type="email" class="form-control" id="doctor_email" name="doctor_email" required>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="report_type" class="form-label">Report Type</label>
+                                <select class="form-select" id="report_type" name="report_type" required>
+                                    <option value="">Select Report Type</option>
+                                    <option value="retinal">Retinal Scan</option>
+                                    <option value="blood">Blood Test</option>
+                                    <option value="urine">Urine Test</option>
+                                    <option value="xray">X-Ray</option>
+                                    <option value="mri">MRI</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="consultation_id" class="form-label">Related Consultation (Optional)</label>
+                                <select class="form-select" id="consultation_id" name="consultation_id">
+                                    <option value="">Select Consultation</option>
+                                    {% for consultation in consultations %}
+                                    <option value="{{ consultation.id }}">
+                                        {{ consultation.patient.first_name }} {{ consultation.patient.last_name }} - 
+                                        {{ consultation.date }} {{ consultation.time }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Upload Image</label>
+                            <div class="input-group">
+                                <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+                                <button type="button" class="btn btn-info" id="detectBtn">
+                                    <i class="fas fa-search me-1"></i>Detect
+                                </button>
+                            </div>
+                            <div class="form-text">Supported formats: PNG, JPG, JPEG, GIF, BMP, TIFF</div>
+                            <div id="aiResult" class="mt-3"></div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="findings" class="form-label">Findings</label>
+                                <textarea class="form-control" id="findings" name="findings" rows="3"></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="recommendations" class="form-label">Recommendations</label>
+                                <textarea class="form-control" id="recommendations" name="recommendations" rows="3"></textarea>
+                            </div>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Upload Scan & Generate AI Diagnosis
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-robot me-2"></i>AI Diagnosis Info</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-info-circle me-2"></i>Retinal Disease Classification</h6>
+                        <p class="mb-2">Our AI model can classify retinal images into 8 categories:</p>
+                        <ul class="list-unstyled">
+                            {% for disease in retinal_diseases %}
+                            <li><i class="fas fa-check text-success me-2"></i>{{ disease }}</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    
+                    <div class="alert alert-warning">
+                        <h6><i class="fas fa-exclamation-triangle me-2"></i>Important Notes</h6>
+                        <ul class="list-unstyled mb-0">
+                            <li><i class="fas fa-arrow-right me-2"></i>AI diagnosis is for screening only</li>
+                            <li><i class="fas fa-arrow-right me-2"></i>Final diagnosis requires doctor review</li>
+                            <li><i class="fas fa-arrow-right me-2"></i>Charges ₹1000 per retinal diagnosis</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('report_type').addEventListener('change', function() {
+    const aiInfo = document.querySelector('.card-header.bg-info');
+    if (this.value === 'retinal') {
+        aiInfo.style.display = 'block';
+    } else {
+        aiInfo.style.display = 'none';
+    }
+});
+
+// Preview image before upload
+document.getElementById('image').addEventListener('change', function() {
+    const file = this.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            // You can add image preview functionality here
+            console.log('Image selected:', file.name);
+        };
+        reader.readAsDataURL(file);
+    }
+});
+
+document.getElementById('detectBtn').addEventListener('click', function() {
+    const imageInput = document.getElementById('image');
+    const file = imageInput.files[0];
+    const aiResult = document.getElementById('aiResult');
+    aiResult.innerHTML = '';
+    if (!file) {
+        aiResult.innerHTML = '<div class="alert alert-warning">Please select an image first.</div>';
+        return;
+    }
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('report_type', document.getElementById('report_type').value);
+    fetch('/lab/detect', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            aiResult.innerHTML = `<div class='alert alert-info'><strong>Diagnosis:</strong> ${data.diagnosis}<br><strong>Confidence:</strong> ${(data.confidence * 100).toFixed(1)}%</div>`;
+        } else {
+            aiResult.innerHTML = `<div class='alert alert-danger'>${data.message}</div>`;
+        }
+    })
+    .catch(() => {
+        aiResult.innerHTML = '<div class="alert alert-danger">Error during detection.</div>';
+    });
+});
+</script>
+{% endblock %} 

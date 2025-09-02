@@ -1,0 +1,167 @@
+{% extends "base.html" %}
+
+{% block title %}File Integrity Verification{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-search me-2"></i>File Integrity Verification</h2>
+                <a href="{{ url_for('file_verification.upload_file') }}" class="btn btn-outline-primary">
+                    <i class="fas fa-upload me-2"></i>Upload New File
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-shield-check me-2"></i>Verify File Integrity</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data" id="verifyForm">
+                        <div class="mb-3">
+                            <label for="file_id" class="form-label">File ID *</label>
+                            <input type="number" class="form-control" id="file_id" name="file_id" required 
+                                   placeholder="Enter the File ID to verify">
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                The File ID is provided when the file was uploaded to the blockchain
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="file" class="form-label">Upload File for Verification *</label>
+                            <input type="file" class="form-control" id="file" name="file" required>
+                            <div class="form-text">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Upload the file you want to verify. The system will compare its hash with the blockchain record.
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="notes" class="form-label">Verification Notes</label>
+                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                                      placeholder="Optional notes about this verification..."></textarea>
+                        </div>
+
+                        <div class="alert alert-warning">
+                            <h6><i class="fas fa-exclamation-triangle me-2"></i>Verification Process</h6>
+                            <ol class="mb-0">
+                                <li>The system calculates the SHA-256 hash of your uploaded file</li>
+                                <li>It retrieves the original hash from the blockchain</li>
+                                <li>Both hashes are compared to determine if the file has been tampered with</li>
+                                <li>The verification result is logged on the blockchain for audit purposes</li>
+                            </ol>
+                        </div>
+
+                        <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                            <button type="button" class="btn btn-outline-secondary me-md-2" onclick="history.back()">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-success">
+                                <i class="fas fa-search me-2"></i>Verify Integrity
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-question-circle me-2"></i>How Verification Works</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-1 me-2"></i>Hash Calculation</h6>
+                        <p class="small">The system calculates a SHA-256 hash of your uploaded file.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-2 me-2"></i>Blockchain Lookup</h6>
+                        <p class="small">It retrieves the original file hash stored on the blockchain.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-3 me-2"></i>Hash Comparison</h6>
+                        <p class="small">Both hashes are compared to detect any modifications.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-4 me-2"></i>Result Logging</h6>
+                        <p class="small">The verification result is permanently recorded on the blockchain.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>Verification Results</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6 class="text-success"><i class="fas fa-check me-2"></i>Integrity Verified</h6>
+                        <p class="small text-muted">File hash matches the blockchain record. File has not been tampered with.</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6 class="text-danger"><i class="fas fa-times me-2"></i>Integrity Failed</h6>
+                        <p class="small text-muted">File hash does not match. File may have been modified or corrupted.</p>
+                    </div>
+                    <div class="mb-0">
+                        <h6 class="text-warning"><i class="fas fa-exclamation me-2"></i>Verification Logged</h6>
+                        <p class="small text-muted">All verification attempts are recorded on the blockchain for audit purposes.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Demo Tampering</h5>
+                </div>
+                <div class="card-body">
+                    <p class="small">Want to see how tampering detection works?</p>
+                    <a href="{{ url_for('file_verification.demo_tamper') }}" class="btn btn-outline-primary btn-sm">
+                        <i class="fas fa-flask me-2"></i>Try Demo
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('verifyForm').addEventListener('submit', function(e) {
+    const fileInput = document.getElementById('file');
+    const file = fileInput.files[0];
+    
+    if (file) {
+        // Show loading state
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Verifying...';
+        submitBtn.disabled = true;
+    }
+});
+
+// File type validation
+document.getElementById('file').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const allowedTypes = ['image/', 'application/pdf', 'application/msword', 
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            'text/', 'application/vnd.ms-excel',
+                            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                            'application/zip', 'application/x-rar-compressed',
+                            'video/'];
+        
+        const isValidType = allowedTypes.some(type => file.type.startsWith(type));
+        
+        if (!isValidType) {
+            alert('File type not supported. Please choose a different file.');
+            this.value = '';
+        }
+    }
+});
+</script>
+{% endblock %}

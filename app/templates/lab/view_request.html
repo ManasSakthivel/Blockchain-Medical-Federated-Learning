@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+
+{% block title %}View Lab Request{% endblock %}
+
+{% block content %}
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Lab Request Details</h1>
+                <a href="{{ url_for('lab.requests') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Requests
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">Request Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <p><strong>Request ID:</strong> #{{ lab_request.id }}</p>
+                            <p><strong>Request Type:</strong> 
+                                <span class="badge bg-primary">{{ lab_request.request_type.title() }}</span>
+                            </p>
+                            <p><strong>Status:</strong> 
+                                <span class="badge {% if lab_request.status == 'pending' %}bg-warning{% elif lab_request.status == 'completed' %}bg-success{% elif lab_request.status == 'approved' %}bg-info{% else %}bg-danger{% endif %}">
+                                    {{ lab_request.status.title() }}
+                                </span>
+                            </p>
+                            <p><strong>Priority:</strong> 
+                                <span class="badge {% if lab_request.priority == 'urgent' %}bg-danger{% elif lab_request.priority == 'high' %}bg-warning{% elif lab_request.priority == 'normal' %}bg-info{% else %}bg-secondary{% endif %}">
+                                    {{ lab_request.priority.title() }}
+                                </span>
+                            </p>
+                        </div>
+                        <div class="col-md-6">
+                            <p><strong>Requested Date:</strong> {{ lab_request.requested_date.strftime('%Y-%m-%d') }}</p>
+                            <p><strong>Completed Date:</strong> 
+                                {{ lab_request.completed_date.strftime('%Y-%m-%d') if lab_request.completed_date else 'Not completed' }}
+                            </p>
+                            <p><strong>Created:</strong> {{ lab_request.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-3">
+                        <h6>Reason for Request:</h6>
+                        <p class="text-muted">{{ lab_request.reason }}</p>
+                    </div>
+                    
+                    {% if lab_request.notes %}
+                    <div class="mt-3">
+                        <h6>Notes:</h6>
+                        <p class="text-muted">{{ lab_request.notes }}</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">Patient Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ lab_request.patient.first_name }} {{ lab_request.patient.last_name }}</p>
+                    <p><strong>Email:</strong> {{ lab_request.patient.user.email }}</p>
+                    <p><strong>Phone:</strong> {{ lab_request.patient.phone }}</p>
+                    <p><strong>Blood Group:</strong> {{ lab_request.patient.blood_group or 'Not specified' }}</p>
+                </div>
+            </div>
+
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Doctor Information</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> Dr. {{ lab_request.doctor.first_name }} {{ lab_request.doctor.last_name }}</p>
+                    <p><strong>Specialization:</strong> {{ lab_request.doctor.specialization }}</p>
+                    <p><strong>Email:</strong> {{ lab_request.doctor.user.email }}</p>
+                    <p><strong>Phone:</strong> {{ lab_request.doctor.phone }}</p>
+                </div>
+            </div>
+
+            {% if lab_request.status == 'pending' %}
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Actions</h5>
+                </div>
+                <div class="card-body">
+                    <a href="{{ url_for('lab.process_request', request_id=lab_request.id) }}" class="btn btn-primary w-100">
+                        <i class="fas fa-cogs me-2"></i>Process Request
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if lab_request.lab_report %}
+            <div class="card shadow mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0">Generated Report</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Report ID:</strong> #{{ lab_request.lab_report.id }}</p>
+                    <p><strong>Status:</strong> 
+                        <span class="badge {% if lab_request.lab_report.status == 'completed' %}bg-success{% else %}bg-warning{% endif %}">
+                            {{ lab_request.lab_report.status.title() }}
+                        </span>
+                    </p>
+                    <a href="{{ url_for('lab.view_report', report_id=lab_request.lab_report.id) }}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-eye me-2"></i>View Report
+                    </a>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %} 

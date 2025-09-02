@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}Request Lab Report - Patient Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-clipboard-list me-2"></i>Request Lab Report</h2>
+                <a href="{{ url_for('patient.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-file-medical me-2"></i>New Lab Report Request</h5>
+                </div>
+                <div class="card-body">
+                    <form method="POST">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="doctor_id" class="form-label">Select Doctor</label>
+                                <select class="form-select" id="doctor_id" name="doctor_id" required>
+                                    <option value="">Choose Doctor</option>
+                                    {% for doctor in doctors %}
+                                    <option value="{{ doctor.id }}">
+                                        Dr. {{ doctor.first_name }} {{ doctor.last_name }} - {{ doctor.specialization }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="lab_id" class="form-label">Select Lab</label>
+                                <select class="form-select" id="lab_id" name="lab_id" required>
+                                    <option value="">Choose Lab</option>
+                                    {% for lab in labs %}
+                                    <option value="{{ lab.id }}">
+                                        {{ lab.lab_name }} - {{ lab.specialization }}
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="request_type" class="form-label">Report Type</label>
+                                <select class="form-select" id="request_type" name="request_type" required>
+                                    <option value="">Select Report Type</option>
+                                    <option value="retinal">Retinal Scan (₹1000)</option>
+                                    <option value="blood">Blood Test (₹500)</option>
+                                    <option value="urine">Urine Test (₹300)</option>
+                                    <option value="xray">X-Ray (₹300)</option>
+                                    <option value="mri">MRI (₹300)</option>
+                                    <option value="other">Other (₹300)</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="priority" class="form-label">Priority</label>
+                                <select class="form-select" id="priority" name="priority">
+                                    <option value="normal">Normal</option>
+                                    <option value="high">High</option>
+                                    <option value="urgent">Urgent</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="consultation_id" class="form-label">Related Consultation (Optional)</label>
+                            <select class="form-select" id="consultation_id" name="consultation_id">
+                                <option value="">Select Consultation</option>
+                                {% for consultation in consultations %}
+                                <option value="{{ consultation.id }}">
+                                    Dr. {{ consultation.doctor.first_name }} {{ consultation.doctor.last_name }} - 
+                                    {{ consultation.date }} {{ consultation.time }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="reason" class="form-label">Reason for Request</label>
+                            <textarea class="form-control" id="reason" name="reason" rows="4" 
+                                      placeholder="Please describe why you need this lab report..." required></textarea>
+                        </div>
+
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-paper-plane me-2"></i>Submit Request
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Pricing Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-rupee-sign me-2"></i>Service Charges</h5>
+                </div>
+                <div class="card-body">
+                    <div class="list-group list-group-flush">
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Retinal Scan</h6>
+                                <small class="text-muted">AI-powered diagnosis</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">₹1000</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Blood Test</h6>
+                                <small class="text-muted">Complete blood count</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">₹500</span>
+                        </div>
+                        <div class="list-group-item d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-0">Other Tests</h6>
+                                <small class="text-muted">X-Ray, MRI, etc.</small>
+                            </div>
+                            <span class="badge bg-primary rounded-pill">₹300</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- AI Diagnosis Info -->
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-robot me-2"></i>AI Diagnosis</h5>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-success">
+                        <h6><i class="fas fa-brain me-2"></i>Retinal Disease Classification</h6>
+                        <p class="mb-2">For retinal scans, our AI can detect:</p>
+                        <ul class="list-unstyled">
+                            <li><i class="fas fa-check text-success me-2"></i>Diabetic Retinopathy</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Glaucoma</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Cataract</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Macular Degeneration</li>
+                            <li><i class="fas fa-check text-success me-2"></i>And more...</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Update pricing display based on selected report type
+document.getElementById('request_type').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    const priceText = selectedOption.text.match(/₹(\d+)/);
+    if (priceText) {
+        console.log('Selected price:', priceText[1]);
+    }
+});
+</script>
+{% endblock %} 

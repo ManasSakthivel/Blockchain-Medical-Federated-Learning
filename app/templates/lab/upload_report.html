@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+
+{% block title %}Upload Lab Report{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Upload Lab Report</h1>
+                <a href="{{ url_for('lab.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Upload New Report</h6>
+                </div>
+                <div class="card-body">
+                    <form method="POST" enctype="multipart/form-data">
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="patient_email" class="form-label">Patient Email *</label>
+                                <input type="email" class="form-control" id="patient_email" name="patient_email" required>
+                                <div class="form-text">Enter the patient's registered email address</div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="doctor_email" class="form-label">Doctor Email *</label>
+                                <input type="email" class="form-control" id="doctor_email" name="doctor_email" required>
+                                <div class="form-text">Enter the doctor's registered email address</div>
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="report_type" class="form-label">Report Type *</label>
+                                <select class="form-select" id="report_type" name="report_type" required>
+                                    <option value="">Select Report Type</option>
+                                    <option value="retinal">Retinal Scan</option>
+                                    <option value="blood">Blood Test</option>
+                                    <option value="urine">Urine Test</option>
+                                    <option value="xray">X-Ray</option>
+                                    <option value="mri">MRI Scan</option>
+                                    <option value="ct">CT Scan</option>
+                                    <option value="other">Other</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="consultation_id" class="form-label">Related Consultation (Optional)</label>
+                                <select class="form-select" id="consultation_id" name="consultation_id">
+                                    <option value="">Select Consultation</option>
+                                    {% for consultation in consultations %}
+                                    <option value="{{ consultation.id }}">
+                                        #{{ consultation.id }} - {{ consultation.patient.first_name }} {{ consultation.patient.last_name }} 
+                                        ({{ consultation.date.strftime('%Y-%m-%d') }})
+                                    </option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="image" class="form-label">Upload Image *</label>
+                            <input type="file" class="form-control" id="image" name="image" accept="image/*" required>
+                            <div class="form-text">
+                                Supported formats: PNG, JPG, JPEG, GIF, BMP, TIFF. 
+                                For retinal scans, AI classification will be automatically performed.
+                            </div>
+                        </div>
+
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label for="findings" class="form-label">Findings</label>
+                                <textarea class="form-control" id="findings" name="findings" rows="3" 
+                                          placeholder="Enter lab findings and observations..."></textarea>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label for="recommendations" class="form-label">Recommendations</label>
+                                <textarea class="form-control" id="recommendations" name="recommendations" rows="3"
+                                          placeholder="Enter recommendations for the doctor..."></textarea>
+                            </div>
+                        </div>
+
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle me-2"></i>
+                            <strong>AI Classification:</strong> For retinal scans, our AI model will automatically classify the disease and provide confidence scores. The standard charge for each diagnosis is ₹1000.
+                        </div>
+
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="history.back()">
+                                <i class="fas fa-times me-2"></i>Cancel
+                            </button>
+                            <button type="submit" class="btn btn-primary">
+                                <i class="fas fa-upload me-2"></i>Upload Report
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('lab.reports') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-file-medical me-2"></i>View All Reports
+                        </a>
+                        <a href="{{ url_for('lab.profile') }}" class="btn btn-outline-secondary">
+                            <i class="fas fa-user-cog me-2"></i>Lab Profile
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card shadow mt-4">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">AI Classification Info</h6>
+                </div>
+                <div class="card-body">
+                    <h6>Retinal Disease Classes:</h6>
+                    <ul class="list-unstyled">
+                        <li><i class="fas fa-check text-success me-2"></i>Normal</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Diabetic Retinopathy</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Glaucoma</li>
+                        <li><i class="fas fa-check text-success me-2"></i>Cataract</li>
+                        <li><i class="fas fa-check text-success me-2"></i>AMD (Age-related Macular Degeneration)</li>
+                    </ul>
+                    <hr>
+                    <p class="mb-0"><small class="text-muted">
+                        <i class="fas fa-lightbulb me-1"></i>
+                        The AI model provides confidence scores to help doctors make informed decisions.
+                    </small></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('report_type').addEventListener('change', function() {
+    const reportType = this.value;
+    const aiInfo = document.querySelector('.alert-info');
+    
+    if (reportType === 'retinal') {
+        aiInfo.style.display = 'block';
+    } else {
+        aiInfo.style.display = 'none';
+    }
+});
+
+// Auto-hide AI info initially
+document.querySelector('.alert-info').style.display = 'none';
+</script>
+{% endblock %} 

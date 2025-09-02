@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+
+{% block title %}Prescription - {{ prescription.medication_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-pills"></i> Prescription Details
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.prescriptions') }}">Prescriptions</a></li>
+                            <li class="breadcrumb-item active">Prescription #{{ prescription.id }}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{{ url_for('doctor.prescriptions') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Prescriptions
+                    </a>
+                </div>
+            </div>
+
+            <!-- Prescription Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-file-medical"></i> Prescription Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Prescription ID:</strong> #{{ prescription.id }}</p>
+                            <p><strong>Medication:</strong> {{ prescription.medication_name }}</p>
+                            <p><strong>Dosage:</strong> {{ prescription.dosage }}</p>
+                            <p><strong>Frequency:</strong> {{ prescription.frequency }}</p>
+                            <p><strong>Duration:</strong> {{ prescription.duration }}</p>
+                            <p><strong>Prescribed Date:</strong> {{ prescription.prescribed_date.strftime('%Y-%m-%d') }}</p>
+                            <p><strong>Status:</strong> 
+                                {% if prescription.is_active %}
+                                    <span class="badge bg-success">Active</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">Inactive</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Created:</strong> {{ prescription.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            {% if prescription.updated_at != prescription.created_at %}
+                                <p><strong>Last Updated:</strong> {{ prescription.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-injured"></i> Patient Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> {{ prescription.patient.first_name }} {{ prescription.patient.last_name }}</p>
+                            <p><strong>Date of Birth:</strong> {{ prescription.patient.date_of_birth.strftime('%Y-%m-%d') }}</p>
+                            <p><strong>Gender:</strong> {{ prescription.patient.gender.title() }}</p>
+                            <p><strong>Phone:</strong> {{ prescription.patient.phone }}</p>
+                            <p><strong>Email:</strong> {{ prescription.patient.user.email }}</p>
+                            <p><strong>Blood Group:</strong> {{ prescription.patient.blood_group or 'Not specified' }}</p>
+                            <p><strong>Allergies:</strong> {{ prescription.patient.allergies or 'None reported' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Instructions -->
+            {% if prescription.instructions %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-info-circle"></i> Instructions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p>{{ prescription.instructions }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Related Consultation -->
+            {% if prescription.consultation %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-calendar-check"></i> Related Consultation
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Date:</strong> {{ prescription.consultation.date.strftime('%Y-%m-%d') }}</p>
+                                    <p><strong>Time:</strong> {{ prescription.consultation.time.strftime('%H:%M') }}</p>
+                                    <p><strong>Reason:</strong> {{ prescription.consultation.reason[:100] }}{% if prescription.consultation.reason|length > 100 %}...{% endif %}</p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Status:</strong> 
+                                        {% if prescription.consultation.status == 'scheduled' %}
+                                            <span class="badge bg-warning">Scheduled</span>
+                                        {% elif prescription.consultation.status == 'in_progress' %}
+                                            <span class="badge bg-info">In Progress</span>
+                                        {% elif prescription.consultation.status == 'completed' %}
+                                            <span class="badge bg-success">Completed</span>
+                                        {% elif prescription.consultation.status == 'cancelled' %}
+                                            <span class="badge bg-danger">Cancelled</span>
+                                        {% else %}
+                                            <span class="badge bg-secondary">{{ prescription.consultation.status.title() }}</span>
+                                        {% endif %}
+                                    </p>
+                                    {% if prescription.consultation.diagnosis %}
+                                        <p><strong>Diagnosis:</strong> {{ prescription.consultation.diagnosis[:100] }}{% if prescription.consultation.diagnosis|length > 100 %}...{% endif %}</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Actions -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-cogs"></i> Actions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex gap-2">
+                                <a href="{{ url_for('doctor.view_patient', patient_id=prescription.patient.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-user"></i> View Patient
+                                </a>
+                                <a href="{{ url_for('doctor.patient_medical_history', patient_id=prescription.patient.id) }}" class="btn btn-outline-info">
+                                    <i class="fas fa-history"></i> Medical History
+                                </a>
+                                {% if prescription.consultation %}
+                                    <a href="{{ url_for('doctor.view_consultation', consultation_id=prescription.consultation.id) }}" class="btn btn-outline-secondary">
+                                        <i class="fas fa-calendar-check"></i> View Consultation
+                                    </a>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

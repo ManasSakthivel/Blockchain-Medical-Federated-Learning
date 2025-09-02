@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+
+{% block title %}My Lab Reports{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">My Lab Reports</h1>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('patient.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                    <a href="{{ url_for('patient.prescriptions') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-pills me-2"></i>View Prescriptions
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if lab_reports %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Lab Reports ({{ lab_reports|length }})</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Report ID</th>
+                                    <th>Type</th>
+                                    <th>Doctor</th>
+                                    <th>Lab</th>
+                                    <th>Diagnosis</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for report in lab_reports %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ report.id }}</strong>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ report.report_type.title() }}</span>
+                                    </td>
+                                    <td>
+                                        Dr. {{ report.doctor.first_name }} {{ report.doctor.last_name }}
+                                        <br>
+                                        <small class="text-muted">{{ report.doctor.specialization }}</small>
+                                    </td>
+                                    <td>
+                                        {{ report.lab.lab_name }}
+                                        <br>
+                                        <small class="text-muted">{{ report.lab.specialization }}</small>
+                                    </td>
+                                    <td>
+                                        {% if report.diagnosis %}
+                                            <strong>{{ report.diagnosis }}</strong>
+                                            {% if report.confidence_score %}
+                                                <br>
+                                                <small class="text-success">
+                                                    Confidence: {{ "%.1f"|format(report.confidence_score * 100) }}%
+                                                </small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">Pending Analysis</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if report.status == 'completed' %}bg-success{% elif report.status == 'pending' %}bg-warning{% else %}bg-info{% endif %}">
+                                            {{ report.status.title() }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        {{ report.created_at.strftime('%Y-%m-%d') }}
+                                        <br>
+                                        <small class="text-muted">{{ report.created_at.strftime('%H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        <a href="{{ url_for('patient.view_lab_report', report_id=report.id) }}" 
+                                           class="btn btn-sm btn-primary">
+                                            <i class="fas fa-eye me-1"></i>View
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Reports</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ lab_reports|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-file-medical fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Completed</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ lab_reports|selectattr('status', 'equalto', 'completed')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Pending</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ lab_reports|selectattr('status', 'equalto', 'pending')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-clock fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                AI Diagnosed</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ lab_reports|selectattr('diagnosis')|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-robot fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-file-medical fa-4x text-gray-300 mb-4"></i>
+                    <h4 class="text-gray-500 mb-3">No Lab Reports Found</h4>
+                    <p class="text-gray-400 mb-4">
+                        You don't have any lab reports yet. Lab reports will appear here once they are uploaded by your healthcare providers.
+                    </p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="{{ url_for('patient.dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Go to Dashboard
+                        </a>
+                        <a href="{{ url_for('patient.consultations') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-calendar me-2"></i>View Consultations
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

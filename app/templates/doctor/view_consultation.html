@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+
+{% block title %}Consultation Details{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <!-- Page Header -->
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <div>
+                    <h1 class="h3 mb-0">
+                        <i class="fas fa-calendar-check"></i> Consultation Details
+                    </h1>
+                    <nav aria-label="breadcrumb">
+                        <ol class="breadcrumb">
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.dashboard') }}">Dashboard</a></li>
+                            <li class="breadcrumb-item"><a href="{{ url_for('doctor.consultations') }}">Consultations</a></li>
+                            <li class="breadcrumb-item active">Consultation #{{ consultation.id }}</li>
+                        </ol>
+                    </nav>
+                </div>
+                <div>
+                    <a href="{{ url_for('doctor.consultations') }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Consultations
+                    </a>
+                </div>
+            </div>
+
+            <!-- Consultation Information -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-calendar"></i> Consultation Details
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Date:</strong> {{ consultation.date.strftime('%Y-%m-%d') }}</p>
+                            <p><strong>Time:</strong> {{ consultation.time.strftime('%H:%M') }}</p>
+                            <p><strong>Duration:</strong> {{ consultation.duration }} minutes</p>
+                            <p><strong>Type:</strong> {{ consultation.consultation_type.title() }}</p>
+                            <p><strong>Status:</strong> 
+                                {% if consultation.status == 'scheduled' %}
+                                    <span class="badge bg-warning">Scheduled</span>
+                                {% elif consultation.status == 'in_progress' %}
+                                    <span class="badge bg-info">In Progress</span>
+                                {% elif consultation.status == 'completed' %}
+                                    <span class="badge bg-success">Completed</span>
+                                {% elif consultation.status == 'cancelled' %}
+                                    <span class="badge bg-danger">Cancelled</span>
+                                {% else %}
+                                    <span class="badge bg-secondary">{{ consultation.status.title() }}</span>
+                                {% endif %}
+                            </p>
+                            <p><strong>Created:</strong> {{ consultation.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            {% if consultation.updated_at != consultation.created_at %}
+                                <p><strong>Last Updated:</strong> {{ consultation.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-user-injured"></i> Patient Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <p><strong>Name:</strong> {{ consultation.patient.first_name }} {{ consultation.patient.last_name }}</p>
+                            <p><strong>Date of Birth:</strong> {{ consultation.patient.date_of_birth.strftime('%Y-%m-%d') }}</p>
+                            <p><strong>Gender:</strong> {{ consultation.patient.gender.title() }}</p>
+                            <p><strong>Phone:</strong> {{ consultation.patient.phone }}</p>
+                            <p><strong>Email:</strong> {{ consultation.patient.user.email }}</p>
+                            <p><strong>Blood Group:</strong> {{ consultation.patient.blood_group or 'Not specified' }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Consultation Content -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-notes-medical"></i> Consultation Notes
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-12">
+                                    <h6>Reason for Visit</h6>
+                                    <p>{{ consultation.reason or 'No reason specified' }}</p>
+                                </div>
+                            </div>
+                            {% if consultation.diagnosis %}
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <h6>Diagnosis</h6>
+                                    <p>{{ consultation.diagnosis }}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if consultation.treatment_plan %}
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <h6>Treatment Plan</h6>
+                                    <p>{{ consultation.treatment_plan }}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                            {% if consultation.notes %}
+                            <div class="row mt-3">
+                                <div class="col-md-12">
+                                    <h6>Additional Notes</h6>
+                                    <p>{{ consultation.notes }}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Patient Medical History Summary -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-history"></i> Patient Medical History Summary
+                            </h5>
+                            <a href="{{ url_for('doctor.patient_medical_history', patient_id=consultation.patient.id) }}" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-eye"></i> View Complete History
+                            </a>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-calendar-check"></i> Recent Consultations</h6>
+                                    {% set recent_consultations = consultation.patient.consultations|sort(attribute='date', reverse=True) %}
+                                    {% if recent_consultations %}
+                                        <ul class="list-unstyled">
+                                            {% for cons in recent_consultations %}
+                                                {% if cons.id != consultation.id and loop.index <= 3 %}
+                                                    <li class="mb-2">
+                                                        <small class="text-muted">{{ cons.date.strftime('%Y-%m-%d') }}</small><br>
+                                                        <strong>{{ cons.doctor.first_name }} {{ cons.doctor.last_name }}</strong><br>
+                                                        <span class="text-muted">{{ cons.diagnosis[:50] if cons.diagnosis else 'No diagnosis' }}{% if cons.diagnosis and cons.diagnosis|length > 50 %}...{% endif %}</span>
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="text-muted">No previous consultations</p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-microscope"></i> Recent Lab Reports</h6>
+                                    {% set recent_lab_reports = consultation.patient.lab_reports|sort(attribute='created_at', reverse=True) %}
+                                    {% if recent_lab_reports %}
+                                        <ul class="list-unstyled">
+                                            {% for report in recent_lab_reports %}
+                                                {% if loop.index <= 3 %}
+                                                    <li class="mb-2">
+                                                        <small class="text-muted">{{ report.created_at.strftime('%Y-%m-%d') }}</small><br>
+                                                        <strong>{{ report.report_type.title() }}</strong><br>
+                                                        <span class="text-muted">{{ report.diagnosis or 'Pending' }}</span>
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="text-muted">No lab reports</p>
+                                    {% endif %}
+                                </div>
+                                <div class="col-md-4">
+                                    <h6><i class="fas fa-pills"></i> Active Prescriptions</h6>
+                                    {% set active_prescriptions = consultation.patient.prescriptions|selectattr('is_active', 'equalto', true)|list %}
+                                    {% if active_prescriptions %}
+                                        <ul class="list-unstyled">
+                                            {% for prescription in active_prescriptions %}
+                                                {% if loop.index <= 3 %}
+                                                    <li class="mb-2">
+                                                        <small class="text-muted">{{ prescription.prescribed_date.strftime('%Y-%m-%d') }}</small><br>
+                                                        <strong>{{ prescription.medication_name }}</strong><br>
+                                                        <span class="text-muted">{{ prescription.dosage }} - {{ prescription.frequency }}</span>
+                                                    </li>
+                                                {% endif %}
+                                            {% endfor %}
+                                        </ul>
+                                    {% else %}
+                                        <p class="text-muted">No active prescriptions</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Update Consultation Form -->
+            {% if consultation.status != 'cancelled' %}
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-edit"></i> Update Consultation & Create Prescription
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST" action="{{ url_for('doctor.update_consultation', consultation_id=consultation.id) }}">
+                                <div class="row">
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="diagnosis" class="form-label">Diagnosis</label>
+                                            <textarea class="form-control" id="diagnosis" name="diagnosis" rows="3" placeholder="Enter diagnosis...">{{ consultation.diagnosis or '' }}</textarea>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6">
+                                        <div class="mb-3">
+                                            <label for="treatment_plan" class="form-label">Treatment Plan</label>
+                                            <textarea class="form-control" id="treatment_plan" name="treatment_plan" rows="3" placeholder="Enter treatment plan...">{{ consultation.treatment_plan or '' }}</textarea>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label for="notes" class="form-label">Additional Notes</label>
+                                    <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="Enter additional notes...">{{ consultation.notes or '' }}</textarea>
+                                </div>
+                                <!-- Prescription Section -->
+                                <div class="card mt-4">
+                                    <div class="card-header">
+                                        <h6 class="card-title mb-0">
+                                            <i class="fas fa-pills"></i> Prescription Details (Optional)
+                                        </h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="medication_name" class="form-label">Medication Name</label>
+                                                    <input type="text" class="form-control" id="medication_name" name="medication_name" placeholder="Enter medication name...">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="dosage" class="form-label">Dosage</label>
+                                                    <input type="text" class="form-control" id="dosage" name="dosage" placeholder="e.g., 500mg, 1 tablet">
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="frequency" class="form-label">Frequency</label>
+                                                    <input type="text" class="form-control" id="frequency" name="frequency" placeholder="e.g., Twice daily, Once daily">
+                                                </div>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <div class="mb-3">
+                                                    <label for="duration" class="form-label">Duration</label>
+                                                    <input type="text" class="form-control" id="duration" name="duration" placeholder="e.g., 7 days, 2 weeks">
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save"></i> Update Consultation
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Action Buttons -->
+            <div class="row mb-4">
+                <div class="col-12">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="card-title mb-0">
+                                <i class="fas fa-cogs"></i> Actions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="d-flex gap-2">
+                                {% if consultation.status == 'scheduled' %}
+                                    <button class="btn btn-info" onclick="startConsultation({{ consultation.id }})">
+                                        <i class="fas fa-play"></i> Start Consultation
+                                    </button>
+                                {% endif %}
+                                {% if consultation.status == 'in_progress' %}
+                                    <button class="btn btn-success" onclick="completeConsultation({{ consultation.id }})">
+                                        <i class="fas fa-check"></i> Complete Consultation
+                                    </button>
+                                {% endif %}
+                                <a href="{{ url_for('doctor.view_patient', patient_id=consultation.patient.id) }}" class="btn btn-outline-primary">
+                                    <i class="fas fa-user"></i> View Patient
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function startConsultation(consultationId) {
+    if (confirm('Are you sure you want to start this consultation?')) {
+        fetch(`/doctor/consultations/${consultationId}/start`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while starting the consultation.');
+        });
+    }
+}
+
+function completeConsultation(consultationId) {
+    if (confirm('Are you sure you want to complete this consultation?')) {
+        fetch(`/doctor/consultations/${consultationId}/complete`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('Error: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('An error occurred while completing the consultation.');
+        });
+    }
+}
+</script>
+{% endblock %} 

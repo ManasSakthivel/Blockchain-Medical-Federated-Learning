@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}My Prescriptions{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">My Prescriptions</h1>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('patient.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                    <a href="{{ url_for('patient.lab_reports') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-file-medical me-2"></i>View Lab Reports
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if prescriptions %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Prescriptions ({{ prescriptions|length }})</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Prescription ID</th>
+                                    <th>Medication</th>
+                                    <th>Dosage</th>
+                                    <th>Frequency</th>
+                                    <th>Duration</th>
+                                    <th>Prescribed By</th>
+                                    <th>Date</th>
+                                    <th>Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for prescription in prescriptions %}
+                                <tr>
+                                    <td>
+                                        <strong>#{{ prescription.id }}</strong>
+                                    </td>
+                                    <td>
+                                        <strong>{{ prescription.medication_name }}</strong>
+                                        {% if prescription.instructions %}
+                                            <br>
+                                            <small class="text-muted">{{ prescription.instructions }}</small>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ prescription.dosage }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-warning">{{ prescription.frequency }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ prescription.duration }}</span>
+                                    </td>
+                                    <td>
+                                        Dr. {{ prescription.doctor.first_name }} {{ prescription.doctor.last_name }}
+                                        <br>
+                                        <small class="text-muted">{{ prescription.doctor.specialization }}</small>
+                                    </td>
+                                    <td>
+                                        {{ prescription.prescribed_date.strftime('%Y-%m-%d') }}
+                                        <br>
+                                        <small class="text-muted">{{ prescription.created_at.strftime('%H:%M') }}</small>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if prescription.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ 'Active' if prescription.is_active else 'Completed' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card border-left-primary shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">
+                                Total Prescriptions</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">{{ prescriptions|length }}</div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-pills fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-success shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
+                                Active</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ prescriptions|selectattr('is_active', 'equalto', true)|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-check-circle fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-info shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
+                                This Month</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ this_month_count }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-calendar fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card border-left-warning shadow h-100 py-2">
+                <div class="card-body">
+                    <div class="row no-gutters align-items-center">
+                        <div class="col mr-2">
+                            <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
+                                Unique Medications</div>
+                            <div class="h5 mb-0 font-weight-bold text-gray-800">
+                                {{ prescriptions|map(attribute='medication_name')|unique|list|length }}
+                            </div>
+                        </div>
+                        <div class="col-auto">
+                            <i class="fas fa-medkit fa-2x text-gray-300"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Recent Prescriptions -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-primary">Recent Prescriptions</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% for prescription in prescriptions[:6] %}
+                        <div class="col-md-6 col-lg-4 mb-3">
+                            <div class="card h-100 border-left-primary">
+                                <div class="card-body">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <h6 class="card-title mb-0">{{ prescription.medication_name }}</h6>
+                                        <span class="badge {% if prescription.is_active %}bg-success{% else %}bg-secondary{% endif %}">
+                                            {{ 'Active' if prescription.is_active else 'Completed' }}
+                                        </span>
+                                    </div>
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            <strong>Dosage:</strong> {{ prescription.dosage }}<br>
+                                            <strong>Frequency:</strong> {{ prescription.frequency }}<br>
+                                            <strong>Duration:</strong> {{ prescription.duration }}
+                                        </small>
+                                    </p>
+                                    {% if prescription.instructions %}
+                                    <p class="card-text">
+                                        <small class="text-muted">
+                                            <strong>Instructions:</strong> {{ prescription.instructions }}
+                                        </small>
+                                    </p>
+                                    {% endif %}
+                                    <div class="mt-auto">
+                                        <small class="text-muted">
+                                            Prescribed by Dr. {{ prescription.doctor.first_name }} {{ prescription.doctor.last_name }}<br>
+                                            {{ prescription.prescribed_date.strftime('%B %d, %Y') }}
+                                        </small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-pills fa-4x text-gray-300 mb-4"></i>
+                    <h4 class="text-gray-500 mb-3">No Prescriptions Found</h4>
+                    <p class="text-gray-400 mb-4">
+                        You don't have any prescriptions yet. Prescriptions will appear here once they are prescribed by your doctors.
+                    </p>
+                    <div class="d-flex justify-content-center gap-2">
+                        <a href="{{ url_for('patient.dashboard') }}" class="btn btn-primary">
+                            <i class="fas fa-home me-2"></i>Go to Dashboard
+                        </a>
+                        <a href="{{ url_for('patient.consultations') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-calendar me-2"></i>View Consultations
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %} 

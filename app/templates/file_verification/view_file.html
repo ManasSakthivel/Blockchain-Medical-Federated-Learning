@@ -1,0 +1,368 @@
+{% extends "base.html" %}
+
+{% block title %}File Details - {{ file_record.file_name }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-file me-2"></i>File Details</h2>
+                <div>
+                    <a href="{{ url_for('file_verification.verify_file') }}" class="btn btn-outline-success me-2">
+                        <i class="fas fa-search me-2"></i>Verify This File
+                    </a>
+                    <a href="{{ url_for('file_verification.list_files') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Files
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- File Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>File Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>File ID:</strong></td>
+                                    <td><span class="badge bg-secondary">{{ file_record.file_id }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>File Name:</strong></td>
+                                    <td>{{ file_record.file_name }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>File Type:</strong></td>
+                                    <td><span class="badge bg-info">{{ file_record.file_type|upper }}</span></td>
+                                </tr>
+                                <tr>
+                                    <td><strong>File Size:</strong></td>
+                                    <td>{{ file_record.file_size|filesizeformat }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Upload Date:</strong></td>
+                                    <td>{{ file_record.timestamp|datetime }}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        <div class="col-md-6">
+                            <table class="table table-borderless">
+                                <tr>
+                                    <td><strong>Status:</strong></td>
+                                    <td>
+                                        {% if file_record.is_valid %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Valid
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>Invalid
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Uploaded By:</strong></td>
+                                    <td>{{ file_record.uploaded_by }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Patient ID:</strong></td>
+                                    <td>{{ file_record.patient_id }}</td>
+                                </tr>
+                                <tr>
+                                    <td><strong>IPFS Hash:</strong></td>
+                                    <td><code class="small">{{ file_record.ipfs_hash }}</code></td>
+                                </tr>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Blockchain Hash Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-hashtag me-2"></i>Blockchain Hash</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label"><strong>SHA-256 Hash (Stored on Blockchain):</strong></label>
+                        <div class="input-group">
+                            <input type="text" class="form-control" value="{{ file_record.file_hash }}" readonly>
+                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('{{ file_record.file_hash }}')">
+                                <i class="fas fa-copy"></i> Copy
+                            </button>
+                        </div>
+                        <div class="form-text">
+                            <i class="fas fa-info-circle me-1"></i>
+                            This hash is permanently stored on the blockchain and cannot be altered. It serves as the reference for file integrity verification.
+                        </div>
+                    </div>
+                    
+                    <div class="alert alert-info">
+                        <h6><i class="fas fa-shield-alt me-2"></i>Hash Verification</h6>
+                        <p class="mb-0">
+                            To verify this file's integrity, upload the file using the verification tool. The system will calculate its current hash and compare it with this blockchain-stored hash.
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Metadata -->
+            {% if file_record.metadata %}
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-tags me-2"></i>File Metadata</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        {% if file_record.metadata.description %}
+                        <div class="col-md-6">
+                            <h6>Description</h6>
+                            <p>{{ file_record.metadata.description }}</p>
+                        </div>
+                        {% endif %}
+                        {% if file_record.metadata.category %}
+                        <div class="col-md-6">
+                            <h6>Category</h6>
+                            <span class="badge bg-secondary">{{ file_record.metadata.category|title }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% if file_record.metadata.uploaded_by_user %}
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <h6>Uploaded By</h6>
+                            <p>{{ file_record.metadata.uploaded_by_user }} ({{ file_record.metadata.uploaded_by_role|title }})</p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6>Upload Timestamp</h6>
+                            <p>{{ file_record.metadata.upload_timestamp|datetime }}</p>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+
+            <!-- Verification History -->
+            <div class="card shadow">
+                <div class="card-header bg-warning text-dark">
+                    <h5 class="mb-0"><i class="fas fa-history me-2"></i>Verification History</h5>
+                </div>
+                <div class="card-body">
+                    {% if verification_logs %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>Log ID</th>
+                                    <th>Verification Date</th>
+                                    <th>Verified By</th>
+                                    <th>Result</th>
+                                    <th>Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for log in verification_logs %}
+                                <tr>
+                                    <td>{{ log.log_id }}</td>
+                                    <td>{{ log.timestamp|datetime }}</td>
+                                    <td>{{ log.verified_by }}</td>
+                                    <td>
+                                        {% if log.is_match %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Verified
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>Failed
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% if log.notes %}
+                                        <small>{{ log.notes }}</small>
+                                        {% else %}
+                                        <small class="text-muted">No notes</small>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-search fa-2x text-muted mb-3"></i>
+                        <h6>No Verification History</h6>
+                        <p class="text-muted">This file hasn't been verified yet.</p>
+                        <a href="{{ url_for('file_verification.verify_file') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-search me-2"></i>Verify This File
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <!-- Quick Actions -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-tools me-2"></i>Quick Actions</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{{ url_for('file_verification.download_file', file_id=file_record.file_id) }}" 
+                           class="btn btn-outline-success">
+                            <i class="fas fa-download me-2"></i>Download File
+                        </a>
+                        <a href="{{ url_for('file_verification.verify_file') }}" 
+                           class="btn btn-outline-warning">
+                            <i class="fas fa-search me-2"></i>Verify Integrity
+                        </a>
+                        <button type="button" class="btn btn-outline-info" 
+                                onclick="showHashComparison()">
+                            <i class="fas fa-balance-scale me-2"></i>Hash Comparison
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Security Information -->
+            <div class="card shadow mb-4">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i>Security Status</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Blockchain Verified</h6>
+                        <p class="small">File hash is stored on immutable blockchain</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>IPFS Stored</h6>
+                        <p class="small">File is stored on decentralized IPFS network</p>
+                    </div>
+                    <div class="mb-3">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Audit Trail</h6>
+                        <p class="small">All verification attempts are logged</p>
+                    </div>
+                    <div class="mb-0">
+                        <h6><i class="fas fa-check-circle text-success me-2"></i>Tamper Detection</h6>
+                        <p class="small">Any modification will be detected during verification</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- File Statistics -->
+            <div class="card shadow">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>File Statistics</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h4 class="text-primary">{{ verification_logs|length }}</h4>
+                            <small class="text-muted">Verifications</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-success">{{ verification_logs|selectattr('is_match', 'equalto', true)|list|length }}</h4>
+                            <small class="text-muted">Successful</small>
+                        </div>
+                    </div>
+                    <hr>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <h4 class="text-danger">{{ verification_logs|selectattr('is_match', 'equalto', false)|list|length }}</h4>
+                            <small class="text-muted">Failed</small>
+                        </div>
+                        <div class="col-6">
+                            <h4 class="text-warning">{{ file_record.file_size|filesizeformat }}</h4>
+                            <small class="text-muted">File Size</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hash Comparison Modal -->
+<div class="modal fade" id="hashComparisonModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-balance-scale me-2"></i>Hash Comparison</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label"><strong>Original Hash (Blockchain):</strong></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="{{ file_record.file_hash }}" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('{{ file_record.file_hash }}')">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label"><strong>Current Hash (Upload File to Verify):</strong></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" placeholder="Upload a file to see its hash" readonly>
+                        <button class="btn btn-outline-secondary" type="button" disabled>
+                            <i class="fas fa-upload"></i>
+                        </button>
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>How to Compare Hashes</h6>
+                    <ol class="mb-0">
+                        <li>Go to the verification page</li>
+                        <li>Enter this file's ID: <strong>{{ file_record.file_id }}</strong></li>
+                        <li>Upload the file you want to verify</li>
+                        <li>The system will show both hashes and compare them</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <a href="{{ url_for('file_verification.verify_file') }}" class="btn btn-primary">
+                    <i class="fas fa-search me-2"></i>Go to Verification
+                </a>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function copyToClipboard(text) {
+    navigator.clipboard.writeText(text).then(function() {
+        // Show a temporary success message
+        const button = event.target;
+        const originalHTML = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-check"></i>';
+        button.classList.remove('btn-outline-secondary');
+        button.classList.add('btn-success');
+        
+        setTimeout(function() {
+            button.innerHTML = originalHTML;
+            button.classList.remove('btn-success');
+            button.classList.add('btn-outline-secondary');
+        }, 1000);
+    });
+}
+
+function showHashComparison() {
+    new bootstrap.Modal(document.getElementById('hashComparisonModal')).show();
+}
+</script>
+{% endblock %}

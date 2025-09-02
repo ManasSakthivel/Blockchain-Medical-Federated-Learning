@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+
+{% block title %}Lab Reports{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h1 class="h3 mb-0">Lab Reports</h1>
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('lab.upload_scan') }}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload New Report
+                    </a>
+                    <a href="{{ url_for('lab.dashboard') }}" class="btn btn-outline-secondary">
+                        <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header">
+                    <h5 class="mb-0">All Reports</h5>
+                </div>
+                <div class="card-body">
+                    {% if reports %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Report ID</th>
+                                    <th>Patient</th>
+                                    <th>Doctor</th>
+                                    <th>Type</th>
+                                    <th>Diagnosis</th>
+                                    <th>Status</th>
+                                    <th>Payment</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for report in reports %}
+                                <tr>
+                                    <td>#{{ report.id }}</td>
+                                    <td>{{ report.patient.first_name }} {{ report.patient.last_name }}</td>
+                                    <td>Dr. {{ report.doctor.first_name }} {{ report.doctor.last_name }}</td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ report.report_type.title() }}</span>
+                                    </td>
+                                    <td>
+                                        {% if report.diagnosis %}
+                                            {{ report.diagnosis }}
+                                            {% if report.confidence_score %}
+                                                <small class="text-muted">({{ "%.1f"|format(report.confidence_score * 100) }}%)</small>
+                                            {% endif %}
+                                        {% else %}
+                                            <span class="text-muted">No diagnosis</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if report.status == 'completed' %}bg-success{% elif report.status == 'pending' %}bg-warning{% else %}bg-info{% endif %}">
+                                            {{ report.status.title() }}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <span class="badge {% if report.is_paid %}bg-success{% else %}bg-warning{% endif %}">
+                                            {{ 'Paid' if report.is_paid else 'Pending' }}
+                                        </span>
+                                        <br><small>₹{{ "%.2f"|format(report.amount_charged) }}</small>
+                                    </td>
+                                    <td>{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+                                    <td>
+                                        <a href="{{ url_for('lab.view_report', report_id=report.id) }}" class="btn btn-sm btn-outline-primary">
+                                            <i class="fas fa-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-file-medical fa-3x text-gray-300 mb-3"></i>
+                        <p class="text-gray-500">No reports uploaded yet.</p>
+                        <a href="{{ url_for('lab.upload_scan') }}" class="btn btn-primary">
+                            <i class="fas fa-upload me-2"></i>Upload First Report
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

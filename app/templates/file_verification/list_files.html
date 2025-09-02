@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}My Files - Blockchain Verification{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-folder me-2"></i>My Files</h2>
+                <div>
+                    <a href="{{ url_for('file_verification.upload_file') }}" class="btn btn-primary me-2">
+                        <i class="fas fa-upload me-2"></i>Upload New File
+                    </a>
+                    <a href="{{ url_for('file_verification.verify_file') }}" class="btn btn-outline-success">
+                        <i class="fas fa-search me-2"></i>Verify File
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% if files %}
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0"><i class="fas fa-list me-2"></i>Uploaded Files</h5>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th>File ID</th>
+                                    <th>File Name</th>
+                                    <th>Type</th>
+                                    <th>Size</th>
+                                    <th>Upload Date</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for file in files %}
+                                <tr>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ file.file_id }}</span>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ file.file_name }}</strong>
+                                            {% if file.metadata %}
+                                            <br><small class="text-muted">{{ file.metadata.description|default('No description') }}</small>
+                                            {% endif %}
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-info">{{ file.file_type|upper }}</span>
+                                    </td>
+                                    <td>
+                                        {{ file.file_size|filesizeformat }}
+                                    </td>
+                                    <td>
+                                        {{ file.timestamp|datetime }}
+                                    </td>
+                                    <td>
+                                        {% if file.is_valid %}
+                                        <span class="badge bg-success">
+                                            <i class="fas fa-check me-1"></i>Valid
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger">
+                                            <i class="fas fa-times me-1"></i>Invalid
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <a href="{{ url_for('file_verification.view_file', file_id=file.file_id) }}" 
+                                               class="btn btn-sm btn-outline-info" title="View Details">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                            <a href="{{ url_for('file_verification.download_file', file_id=file.file_id) }}" 
+                                               class="btn btn-sm btn-outline-success" title="Download">
+                                                <i class="fas fa-download"></i>
+                                            </a>
+                                            <button type="button" class="btn btn-sm btn-outline-warning" 
+                                                    onclick="showHashInfo('{{ file.file_hash }}')" title="View Hash">
+                                                <i class="fas fa-hashtag"></i>
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Statistics -->
+    <div class="row mt-4">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body text-center">
+                    <h3>{{ files|length }}</h3>
+                    <p class="mb-0">Total Files</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body text-center">
+                    <h3>{{ files|selectattr('is_valid', 'equalto', true)|list|length }}</h3>
+                    <p class="mb-0">Valid Files</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body text-center">
+                    <h3>{{ files|map(attribute='file_size')|sum|filesizeformat }}</h3>
+                    <p class="mb-0">Total Size</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-dark">
+                <div class="card-body text-center">
+                    <h3>{{ files|map(attribute='file_type')|unique|list|length }}</h3>
+                    <p class="mb-0">File Types</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% else %}
+    <!-- Empty State -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-body text-center py-5">
+                    <i class="fas fa-folder-open fa-3x text-muted mb-3"></i>
+                    <h4>No Files Uploaded Yet</h4>
+                    <p class="text-muted">You haven't uploaded any files with blockchain verification yet.</p>
+                    <a href="{{ url_for('file_verification.upload_file') }}" class="btn btn-primary">
+                        <i class="fas fa-upload me-2"></i>Upload Your First File
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Blockchain Information -->
+    <div class="row mt-4">
+        <div class="col-12">
+            <div class="card shadow">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-link me-2"></i>Blockchain Information</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-shield-alt me-2"></i>Security Features</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-check text-success me-2"></i>All file hashes stored on blockchain</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Immutable audit trail</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Tamper detection enabled</li>
+                                <li><i class="fas fa-check text-success me-2"></i>Decentralized verification</li>
+                            </ul>
+                        </div>
+                        <div class="col-md-6">
+                            <h6><i class="fas fa-info-circle me-2"></i>How It Works</h6>
+                            <ul class="list-unstyled">
+                                <li><i class="fas fa-arrow-right text-info me-2"></i>Files are hashed using SHA-256</li>
+                                <li><i class="fas fa-arrow-right text-info me-2"></i>Hashes stored on blockchain</li>
+                                <li><i class="fas fa-arrow-right text-info me-2"></i>IPFS for decentralized storage</li>
+                                <li><i class="fas fa-arrow-right text-info me-2"></i>Verification against blockchain records</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Hash Info Modal -->
+<div class="modal fade" id="hashModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-hashtag me-2"></i>File Hash Information</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label"><strong>SHA-256 Hash:</strong></label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="fileHash" readonly>
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyHashToClipboard()">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <h6><i class="fas fa-info-circle me-2"></i>About SHA-256 Hashing</h6>
+                    <ul class="mb-0">
+                        <li>Produces a unique 256-bit (32-byte) hash for each file</li>
+                        <li>Any change to the file results in a completely different hash</li>
+                        <li>Used to verify file integrity and detect tampering</li>
+                        <li>Stored on the blockchain for immutable verification</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function showHashInfo(hash) {
+    document.getElementById('fileHash').value = hash;
+    new bootstrap.Modal(document.getElementById('hashModal')).show();
+}
+
+function copyHashToClipboard() {
+    const hashInput = document.getElementById('fileHash');
+    hashInput.select();
+    document.execCommand('copy');
+    
+    // Show feedback
+    const copyBtn = event.target;
+    const originalHTML = copyBtn.innerHTML;
+    copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+    copyBtn.classList.remove('btn-outline-secondary');
+    copyBtn.classList.add('btn-success');
+    
+    setTimeout(function() {
+        copyBtn.innerHTML = originalHTML;
+        copyBtn.classList.remove('btn-success');
+        copyBtn.classList.add('btn-outline-secondary');
+    }, 2000);
+}
+
+// Auto-refresh every 30 seconds to check for new files
+setTimeout(function() {
+    location.reload();
+}, 30000);
+</script>
+{% endblock %}
