@@ -5,7 +5,7 @@ from datetime import datetime
 from werkzeug.utils import secure_filename
 from flask import current_app
 from app.services.blockchain_service import BlockchainService
-from app.services.ipfs_service import IPFSService
+from app.services.ipfs_service import IPFSService, IPFSUnavailableError
 
 class FileVerificationService:
     def __init__(self):
@@ -51,6 +51,7 @@ class FileVerificationService:
             return None
     
     def upload_file_secure(self, file, patient_id=None, metadata=None):
+        print("[DEBUG] Starting secure file upload...")
         """
         Upload file with integrity verification
         Returns: dict with upload status and blockchain info
@@ -79,28 +80,40 @@ class FileVerificationService:
             filename = secure_filename(file.filename)
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             filename = f"{timestamp}_{filename}"
-            
+            print(f"[DEBUG] Generated filename: {filename}")
             upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'verified_files')
             os.makedirs(upload_dir, exist_ok=True)
-            
+            print(f"[DEBUG] Upload directory: {upload_dir}")
             file_path = os.path.join(upload_dir, filename)
-            
+            print(f"[DEBUG] File path: {file_path}")
             # Write file content
-            with open(file_path, 'wb') as f:
-                f.write(file_content)
-            
+            try:
+                with open(file_path, 'wb') as f:
+                    f.write(file_content)
+                print(f"[DEBUG] File written to disk.")
+            except Exception as e:
+                print(f"[ERROR] Failed to write file: {e}")
+                return {"success": False, "error": f"Failed to write file: {e}"}
             # Upload to IPFS
-            print(f"🔍 Uploading to IPFS: {file_path}")
-            ipfs_hash = self.ipfs_service.upload_file(file_path)
-            print(f"🔍 IPFS hash result: {ipfs_hash}")
+            print(f"[DEBUG] Uploading to IPFS: {file_path}")
+            try:
+                ipfs_hash = self.ipfs_service.upload_file(file_path)
+            except IPFSUnavailableError as e:
+                return {"success": False, "error": f"IPFS unavailable (strict mode): {e}"}
+            print(f"[DEBUG] IPFS hash result: {ipfs_hash}")
             if not ipfs_hash:
+                print(f"[ERROR] Failed to upload to IPFS.")
                 return {"success": False, "error": "Failed to upload to IPFS"}
-            
+            # Warn if a mock hash was returned (dev mode only)
+            if self.ipfs_service.is_mock_hash(ipfs_hash):
+                print("[WARN] Mock IPFS hash stored on blockchain — integrity guarantee VOID in dev mode.")
             # Pin file on IPFS
-            print(f"🔍 Pinning file on IPFS: {ipfs_hash}")
-            pin_result = self.ipfs_service.pin_file(ipfs_hash)
-            print(f"🔍 Pin result: {pin_result}")
-            
+            print(f"[DEBUG] Pinning file on IPFS: {ipfs_hash}")
+            try:
+                pin_result = self.ipfs_service.pin_file(ipfs_hash)
+            except IPFSUnavailableError:
+                pin_result = False  # Non-fatal; file is uploaded but not pinned
+            print(f"[DEBUG] Pin result: {pin_result}")
             # Prepare metadata
             file_metadata = {
                 "original_filename": file.filename,
@@ -110,9 +123,10 @@ class FileVerificationService:
                 "patient_id": patient_id,
                 "custom_metadata": metadata or {}
             }
-            
+            print(f"[DEBUG] File metadata: {file_metadata}")
             # Store on blockchain
             try:
+                print(f"[DEBUG] Storing file on blockchain...")
                 blockchain_result = self.blockchain_service.upload_file_to_blockchain(
                     filename=filename,
                     file_hash=file_hash,
@@ -122,16 +136,16 @@ class FileVerificationService:
                     patient_id=patient_id,
                     metadata=json.dumps(file_metadata)
                 )
-                    
+                print(f"[DEBUG] Blockchain result: {blockchain_result}")
                 if not blockchain_result:
+                    print(f"[ERROR] Failed to store on blockchain.")
                     return {"success": False, "error": "Failed to store on blockchain"}
-                    
             except Exception as e:
                 import traceback
-                print(f"Blockchain upload error: {e}")
-                print(f"Full traceback: {traceback.format_exc()}")
+                print(f"[ERROR] Blockchain upload error: {e}")
+                print(f"[ERROR] Full traceback: {traceback.format_exc()}")
                 return {"success": False, "error": f"Failed to store on blockchain: {str(e)}"}
-            
+            print(f"[DEBUG] File upload complete. Returning result.")
             return {
                 "success": True,
                 "file_id": blockchain_result.get("file_id"),
@@ -141,9 +155,10 @@ class FileVerificationService:
                 "blockchain_tx": blockchain_result.get("transaction_hash"),
                 "metadata": file_metadata
             }
-            
         except Exception as e:
-            print(f"Error in secure file upload: {e}")
+            print(f"[ERROR] Error in secure file upload: {e}")
+            import traceback
+            print(f"[ERROR] Full traceback: {traceback.format_exc()}")
             return {"success": False, "error": str(e)}
     
     def verify_file_integrity(self, file_id, file_path=None, file_bytes=None):

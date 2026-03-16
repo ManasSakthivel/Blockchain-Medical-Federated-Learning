@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+        <div class="col-md-3 col-lg-2 d-md-block sidebar" style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
             <div class="position-sticky pt-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -17,6 +17,21 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('patient.records') }}">
                             <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_reports') }}">
+                            <i class="fas fa-microscope"></i> Lab Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_requests') }}">
+                            <i class="fas fa-clipboard-list"></i> Lab Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.prescriptions') }}">
+                            <i class="fas fa-pills"></i> Prescriptions
                         </a>
                     </li>
                     <li class="nav-item">
@@ -37,7 +52,6 @@
                 </ul>
             </div>
         </div>
-
         <!-- Main content -->
         <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -54,41 +68,41 @@
                         </div>
                         <div class="card-body">
                             <form method="POST">
-                                <div class="row">
+                                <div class="row g-3 align-items-end">
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="date_of_birth" class="form-label">Date of Birth</label>
                                             <input type="date" class="form-control" id="date_of_birth" name="date_of_birth" 
-                                                   value="{{ patient.date_of_birth or '' }}">
+                                                   value="{{ patient.date_of_birth or '' }}" aria-label="Date of Birth" aria-required="true">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="gender" class="form-label">Gender</label>
                                             <select class="form-select" id="gender" name="gender">
-                                                <option value="">Select gender...</option>
-                                                <option value="Male" {% if patient.gender == 'Male' %}selected{% endif %}>Male</option>
-                                                <option value="Female" {% if patient.gender == 'Female' %}selected{% endif %}>Female</option>
-                                                <option value="Other" {% if patient.gender == 'Other' %}selected{% endif %}>Other</option>
+                                                   <option value="" aria-label="Select gender">Select gender...</option>
+                                                   <option value="Male" {% if patient.gender == 'Male' %}selected{% endif %} aria-label="Male">Male</option>
+                                                   <option value="Female" {% if patient.gender == 'Female' %}selected{% endif %} aria-label="Female">Female</option>
+                                                   <option value="Other" {% if patient.gender == 'Other' %}selected{% endif %} aria-label="Other">Other</option>
                                             </select>
                                         </div>
                                     </div>
                                 </div>
 
-                                <div class="row">
+                                <div class="row g-3 align-items-end">
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="blood_type" class="form-label">Blood Type</label>
                                             <select class="form-select" id="blood_type" name="blood_type">
-                                                <option value="">Select blood type...</option>
-                                                <option value="A+" {% if patient.blood_type == 'A+' %}selected{% endif %}>A+</option>
-                                                <option value="A-" {% if patient.blood_type == 'A-' %}selected{% endif %}>A-</option>
-                                                <option value="B+" {% if patient.blood_type == 'B+' %}selected{% endif %}>B+</option>
-                                                <option value="B-" {% if patient.blood_type == 'B-' %}selected{% endif %}>B-</option>
-                                                <option value="AB+" {% if patient.blood_type == 'AB+' %}selected{% endif %}>AB+</option>
-                                                <option value="AB-" {% if patient.blood_type == 'AB-' %}selected{% endif %}>AB-</option>
-                                                <option value="O+" {% if patient.blood_type == 'O+' %}selected{% endif %}>O+</option>
-                                                <option value="O-" {% if patient.blood_type == 'O-' %}selected{% endif %}>O-</option>
+                                                   <option value="" aria-label="Select blood type">Select blood type...</option>
+                                                   <option value="A+" {% if patient.blood_type == 'A+' %}selected{% endif %} aria-label="A+">A+</option>
+                                                   <option value="A-" {% if patient.blood_type == 'A-' %}selected{% endif %} aria-label="A-">A-</option>
+                                                   <option value="B+" {% if patient.blood_type == 'B+' %}selected{% endif %} aria-label="B+">B+</option>
+                                                   <option value="B-" {% if patient.blood_type == 'B-' %}selected{% endif %} aria-label="B-">B-</option>
+                                                   <option value="AB+" {% if patient.blood_type == 'AB+' %}selected{% endif %} aria-label="AB+">AB+</option>
+                                                   <option value="AB-" {% if patient.blood_type == 'AB-' %}selected{% endif %} aria-label="AB-">AB-</option>
+                                                   <option value="O+" {% if patient.blood_type == 'O+' %}selected{% endif %} aria-label="O+">O+</option>
+                                                   <option value="O-" {% if patient.blood_type == 'O-' %}selected{% endif %} aria-label="O-">O-</option>
                                             </select>
                                         </div>
                                     </div>
@@ -96,7 +110,7 @@
                                         <div class="mb-3">
                                             <label for="phone" class="form-label">Phone Number</label>
                                             <input type="tel" class="form-control" id="phone" name="phone" 
-                                                   value="{{ patient.phone or '' }}" placeholder="(123) 456-7890">
+                                                   value="{{ patient.phone or '' }}" placeholder="(123) 456-7890" aria-label="Phone Number" aria-required="true">
                                         </div>
                                     </div>
                                 </div>
@@ -104,22 +118,22 @@
                                 <div class="mb-3">
                                     <label for="address" class="form-label">Address</label>
                                     <textarea class="form-control" id="address" name="address" rows="3" 
-                                              placeholder="Enter your full address">{{ patient.address or '' }}</textarea>
+                                                  placeholder="Enter your full address" aria-label="Address" aria-required="true">{{ patient.address or '' }}</textarea>
                                 </div>
 
-                                <div class="row">
+                                <div class="row g-3 align-items-end">
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="emergency_contact" class="form-label">Emergency Contact Name</label>
                                             <input type="text" class="form-control" id="emergency_contact" name="emergency_contact" 
-                                                   value="{{ patient.emergency_contact or '' }}" placeholder="Emergency contact name">
+                                                   value="{{ patient.emergency_contact or '' }}" placeholder="Emergency contact name" aria-label="Emergency Contact Name" aria-required="true">
                                         </div>
                                     </div>
                                     <div class="col-md-6">
                                         <div class="mb-3">
                                             <label for="emergency_phone" class="form-label">Emergency Contact Phone</label>
                                             <input type="tel" class="form-control" id="emergency_phone" name="emergency_phone" 
-                                                   value="{{ patient.emergency_phone or '' }}" placeholder="(123) 456-7890">
+                                                   value="{{ patient.emergency_phone or '' }}" placeholder="(123) 456-7890" aria-label="Emergency Contact Phone" aria-required="true">
                                         </div>
                                     </div>
                                 </div>
@@ -127,19 +141,19 @@
                                 <div class="mb-3">
                                     <label for="medical_history" class="form-label">Medical History</label>
                                     <textarea class="form-control" id="medical_history" name="medical_history" rows="4" 
-                                              placeholder="Please list any relevant medical history, surgeries, or chronic conditions">{{ patient.medical_history or '' }}</textarea>
+                                                  placeholder="Please list any relevant medical history, surgeries, or chronic conditions" aria-label="Medical History">{{ patient.medical_history or '' }}</textarea>
                                 </div>
 
                                 <div class="mb-3">
                                     <label for="allergies" class="form-label">Allergies</label>
                                     <textarea class="form-control" id="allergies" name="allergies" rows="3" 
-                                              placeholder="Please list any allergies (medications, foods, environmental, etc.)">{{ patient.allergies or '' }}</textarea>
+                                                  placeholder="Please list any allergies (medications, foods, environmental, etc.)" aria-label="Allergies">{{ patient.allergies or '' }}</textarea>
                                 </div>
 
                                 <div class="d-grid">
-                                    <button type="submit" class="btn btn-primary">
-                                        <i class="fas fa-save"></i> Update Profile
-                                    </button>
+                                        <button type="submit" class="btn btn-primary" aria-label="Update Profile">
+                                            <i class="fas fa-save"></i> Update Profile
+                                        </button>
                                 </div>
                             </form>
                         </div>

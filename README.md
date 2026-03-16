@@ -210,20 +210,24 @@ Library for managing role-based access control.
 
 ### Project Structure
 
-```
-flask-ehr-blockchain/
-├── app/
-│   ├── __init__.py
-│   ├── models/
-│   ├── routes/
-│   ├── services/
-│   ├── static/
-│   └── templates/
-├── contracts/
-├── migrations/
-├── requirements.txt
-├── run.py
-└── README.md
+```text
+EHR-Blockchain/
+├── app/                # Flask application source
+│   ├── models/         # Database models
+│   ├── routes/         # API routes and controllers
+│   ├── services/       # Blockchain & IPFS logic
+│   ├── static/         # Frontend assets (CSS, JS, Uploads)
+│   └── templates/      # HTML templates
+├── contracts/          # Solidity Smart Contracts
+├── docs/               # Research paper & Implementation guides
+├── scripts/            # Setup, migration, and admin utilities
+├── tests/              # Full test suite for verification
+├── migrations/         # Flask-Migrate database history
+├── README.md           # Main project documentation
+├── requirements.txt    # Python dependencies
+├── .env.example        # Environment variable template
+├── run.py              # Entry point to start the server
+└── truffle-config.js   # Truffle configuration for blockchain
 ```
 
 ### Adding New Features

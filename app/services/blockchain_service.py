@@ -3,6 +3,10 @@ import hashlib
 from web3 import Web3
 from flask import current_app
 import os
+from dotenv import load_dotenv
+
+# Load .env automatically so callers don't have to remember
+load_dotenv()
 
 class BlockchainService:
     def __init__(self):
@@ -15,7 +19,7 @@ class BlockchainService:
         
         # Ganache configuration
         self.ganache_url = "http://127.0.0.1:7545"  # Default Ganache URL
-        self.contract_address = None
+        self.account = None
         self.contract_abi = None
         
     def connect_to_ganache(self):
@@ -26,13 +30,14 @@ class BlockchainService:
             if self.web3.is_connected():
                 print(f"✅ Connected to Ganache at {self.ganache_url}")
                 self.is_connected = True
-                
-                # Set default account (first account in Ganache)
+                # Dynamically use the first Ganache account
                 accounts = self.web3.eth.accounts
-                if accounts:
+                if accounts and len(accounts) > 0:
                     self.account = accounts[0]
                     print(f"✅ Using account: {self.account}")
-                
+                else:
+                    print("❌ No accounts found in Ganache.")
+                    return False
                 return True
             else:
                 print(f"❌ Failed to connect to Ganache at {self.ganache_url}")
@@ -136,17 +141,18 @@ class BlockchainService:
         return []
     
     def set_account(self, account_index=0):
-        """Set the account to use for transactions"""
+        """Set the account to use for transactions (default: first Ganache account)"""
         if not self.is_connected:
             if not self.connect_to_ganache():
                 return None
-        
-        accounts = self.get_accounts()
-        if accounts and account_index < len(accounts):
+        accounts = self.web3.eth.accounts
+        if accounts and len(accounts) > account_index:
             self.account = accounts[account_index]
             print(f"✅ Set account to: {self.account}")
             return self.account
-        return None
+        else:
+            print("❌ No accounts found in Ganache.")
+            return None
     
     def get_balance(self):
         """Get balance of current account in ETH"""
@@ -195,23 +201,40 @@ class BlockchainService:
                 return None
         return None
     
-    def _get_private_key(self):
-        """Get private key for the current account"""
-        try:
-            if not self.account:
-                return None
-            
-            # Load private keys from file
-            private_keys_path = os.path.join(os.getcwd(), 'private_keys.json')
-            if os.path.exists(private_keys_path):
+    def _get_private_key(self) -> str | None:
+        """
+        Resolve the private key for self.account.
+
+        Resolution order (most-secure first):
+          1. Environment variable  GANACHE_PRIVATE_KEY_<checksum-address>
+          2. private_keys.json   (dev fallback — keep this file git-ignored)
+        """
+        if not self.account:
+            return None
+
+        # 1. Try environment variable (preferred / production-safe)
+        env_key = f"GANACHE_PRIVATE_KEY_{self.account}"
+        pk = os.environ.get(env_key)
+        if pk:
+            return pk
+
+        # 2. Fall back to private_keys.json with a deprecation warning
+        private_keys_path = os.path.join(os.getcwd(), 'private_keys.json')
+        if os.path.exists(private_keys_path):
+            print(
+                f"⚠️  Reading private key from private_keys.json (fallback).\n"
+                f"   Set {env_key} in your .env to avoid this."
+            )
+            try:
                 with open(private_keys_path, 'r') as f:
                     private_keys = json.load(f)
-                    return private_keys.get(self.account)
-            
-            return None
-        except Exception as e:
-            print(f"Error getting private key: {e}")
-            return None
+                return private_keys.get(self.account)
+            except Exception as e:
+                print(f"❌ Failed to read private_keys.json: {e}")
+
+        print(f"❌ No private key found for {self.account}. "
+              f"Set {env_key} in your .env file.")
+        return None
     
     def get_all_doctors(self):
         """Get all doctors from blockchain"""

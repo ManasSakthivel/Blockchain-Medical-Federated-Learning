@@ -3,6 +3,10 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager
 from flask_migrate import Migrate
 import os
+from dotenv import load_dotenv
+
+# Load environment variables from .env before anything else
+load_dotenv()
 
 db = SQLAlchemy()  # Single source of db
 login_manager = LoginManager()

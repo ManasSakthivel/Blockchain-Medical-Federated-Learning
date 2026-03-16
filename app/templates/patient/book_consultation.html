@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+        <div class="col-md-3 col-lg-2 d-md-block sidebar" style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
             <div class="position-sticky pt-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -17,6 +17,21 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ url_for('patient.records') }}">
                             <i class="fas fa-file-medical"></i> Medical Records
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_reports') }}">
+                            <i class="fas fa-microscope"></i> Lab Reports
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.lab_requests') }}">
+                            <i class="fas fa-clipboard-list"></i> Lab Requests
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('patient.prescriptions') }}">
+                            <i class="fas fa-pills"></i> Prescriptions
                         </a>
                     </li>
                     <li class="nav-item">
@@ -37,7 +52,6 @@
                 </ul>
             </div>
         </div>
-
         <!-- Main content -->
         <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -48,7 +62,6 @@
                     </a>
                 </div>
             </div>
-
             <div class="row">
                 <div class="col-md-8">
                     <div class="card">

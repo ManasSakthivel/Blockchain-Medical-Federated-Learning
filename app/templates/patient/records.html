@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+        <div class="col-md-3 col-lg-2 d-md-block sidebar" style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
             <div class="position-sticky pt-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -52,7 +52,6 @@
                 </ul>
             </div>
         </div>
-
         <!-- Main content -->
         <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
             <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
@@ -60,33 +59,33 @@
             </div>
 
             {% if records %}
-                <div class="row">
-                    {% for record in records %}
-                    <div class="col-md-6 col-lg-4 mb-4">
-                        <div class="card h-100">
-                            <div class="card-header">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <h6 class="card-title mb-0">
-                                        <i class="fas fa-file-medical"></i> Record #{{ record.id }}
-                                    </h6>
-                                    <small class="text-muted">{{ record.date.strftime('%Y-%m-%d') }}</small>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <p><strong>Type:</strong> {{ record.record_type.title() }}</p>
-                                <p><strong>Title:</strong> {{ record.title }}</p>
-                                {% if record.description %}
-                                <p><strong>Description:</strong> {{ record.description[:100] }}{% if record.description|length > 100 %}...{% endif %}</p>
-                                {% endif %}
-                            </div>
-                            <div class="card-footer">
-                                <a href="{{ url_for('patient.view_record', record_id=record.id) }}" class="btn btn-primary btn-sm">
-                                    <i class="fas fa-eye"></i> View Details
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                    {% endfor %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Type</th>
+                                <th>Title</th>
+                                <th>Description</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for record in records %}
+                            <tr>
+                                <td>{{ record.date.strftime('%Y-%m-%d') }}</td>
+                                <td>{{ record.record_type.title() }}</td>
+                                <td>{{ record.title }}</td>
+                                <td>{{ record.description[:100] }}{% if record.description|length > 100 %}...{% endif %}</td>
+                                <td>
+                                    <a href="{{ url_for('patient.view_record', record_id=record.id) }}" class="btn btn-primary btn-sm">
+                                        <i class="fas fa-eye"></i> View Details
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
                 </div>
             {% else %}
                 <div class="text-center py-5">

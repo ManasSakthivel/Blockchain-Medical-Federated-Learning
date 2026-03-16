@@ -1,0 +1,31 @@
+# EHR Project Setup & Run Commands
+
+1. (Optional) Create and activate virtual environment:
+   python3 -m venv venv
+   source venv/bin/activate
+
+2. Install Python dependencies:
+   pip install -r requirements.txt
+
+3. Start Ganache with standard mnemonic:
+   ganache --port 7545 --accounts 10 --defaultBalanceEther 1000 --mnemonic "test test test test test test test test test test test junk"
+
+4. Deploy smart contracts:
+   truffle migrate --network development
+
+5. Start IPFS daemon:
+   ipfs daemon
+
+6. Regenerate private keys (only needed if mnemonic changes):
+   python get_ganache_keys.py
+
+7. Start the Flask app:
+   python run.py
+
+8. Access the web interface:
+   http://127.0.0.1:5000 (or the port shown in terminal)
+
+# Notes
+- Always use the same mnemonic for Ganache to keep accounts and private keys in sync.
+- Only rerun get_ganache_keys.py if you change the mnemonic or reset Ganache accounts.
+- For demo reliability, do not change the mnemonic or delete private_keys.json unless necessary.

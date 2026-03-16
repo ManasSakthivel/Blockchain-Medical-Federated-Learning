@@ -6,7 +6,7 @@
 <div class="container-fluid">
     <div class="row">
         <!-- Sidebar -->
-        <div class="col-md-3 col-lg-2 d-md-block bg-light sidebar">
+        <div class="col-md-3 col-lg-2 d-md-block sidebar" style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
             <div class="position-sticky pt-3">
                 <ul class="nav flex-column">
                     <li class="nav-item">
@@ -69,7 +69,7 @@
             <!-- Patient Info Card -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
+                        <div class="card" style="background: #ede7f6;">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <i class="fas fa-user-circle"></i> Patient Information
@@ -102,7 +102,7 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <h4 class="card-title">{{ records|length }}</h4>
+                                        <h4 class="card-title" style="color: #fff; background: #3a1c71; border-radius: 8px; display: inline-block; padding: 0.25em 0.75em;">{{ records|length }}</h4>
                                     <p class="card-text">Medical Records</p>
                                 </div>
                                 <div class="align-self-center">
@@ -117,7 +117,7 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between">
                                 <div>
-                                    <h4 class="card-title">{{ consultations|length }}</h4>
+                                        <h4 class="card-title" style="color: #fff; background: #3a1c71; border-radius: 8px; display: inline-block; padding: 0.25em 0.75em;">{{ consultations|length }}</h4>
                                     <p class="card-text">Total Consultations</p>
                                 </div>
                                 <div class="align-self-center">
@@ -170,7 +170,7 @@
             <!-- Recent Medical Records -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
+                        <div class="card" style="background: #ede7f6;">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <i class="fas fa-file-medical"></i> Recent Medical Records
@@ -224,7 +224,7 @@
             <!-- Upcoming Consultations -->
             <div class="row mb-4">
                 <div class="col-12">
-                    <div class="card">
+                        <div class="card" style="background: #ede7f6;">
                         <div class="card-header">
                             <h5 class="card-title mb-0">
                                 <i class="fas fa-calendar-check"></i> Upcoming Consultations

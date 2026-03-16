@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Federated Learning Simulation{% endblock %}
+{% block content %}
+<div class="container-fluid">
+    <div class="row mb-4">
+        <div class="col-12">
+            <h2><i class="fas fa-project-diagram me-2"></i>Federated Learning Simulation</h2>
+            <p class="lead">This interactive simulation demonstrates multi-round federated learning with blockchain-style audit and tamper detection, inspired by the referenced research paper.</p>
+        </div>
+    </div>
+    <form method="get" action="">
+        <div class="row mb-3">
+            <div class="col-md-3">
+                <label for="n_rounds" class="form-label">Federated Rounds</label>
+                <input type="number" class="form-control" id="n_rounds" name="n_rounds" min="1" max="10" value="{{ n_rounds }}">
+            </div>
+            <div class="col-md-3">
+                <label for="tamper_round" class="form-label">Tamper Round (optional)</label>
+                <input type="number" class="form-control" id="tamper_round" name="tamper_round" min="1" max="{{ n_rounds }}" value="{{ tamper_round }}">
+            </div>
+            <div class="col-md-3">
+                <label for="tamper_node" class="form-label">Tamper Node (optional)</label>
+                <input type="number" class="form-control" id="tamper_node" name="tamper_node" min="1" max="3" value="{{ tamper_node }}">
+            </div>
+            <div class="col-md-3 d-flex align-items-end">
+                <button type="submit" class="btn btn-primary w-100">Run Simulation</button>
+            </div>
+        </div>
+    </form>
+    {% for round in round_logs %}
+    <div class="card shadow mb-4">
+        <div class="card-header bg-gradient-primary text-white">
+            <h5 class="mb-0">Round {{ round.round }} {% if tamper_round and tamper_node and round.round == tamper_round %}<span class="badge bg-danger ms-2">Tampered</span>{% endif %}</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                {% for node in round.nodes %}
+                <div class="col-md-4 mb-3">
+                    <div class="card h-100 {% if node.status == 'Tampered' %}border-danger{% endif %}">
+                        <div class="card-body">
+                            <h6 class="card-title">{{ node.id }}</h6>
+                            <p class="mb-1"><b>Status:</b> <span class="badge {% if node.status == 'Tampered' %}bg-danger{% else %}bg-success{% endif %}">{{ node.status }}</span></p>
+                            <p class="mb-1"><b>Accuracy:</b> {{ '%.2f'|format(node.accuracy*100) }}%</p>
+                            <p class="mb-1"><b>Model Hash:</b> <code style="font-size:0.85em;word-break:break-all">{{ node.hash }}</code></p>
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="alert alert-info mt-3">
+                <b>Global Model Hash:</b> <code style="font-size:0.95em;word-break:break-all">{{ round.global_hash }}</code>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+    <div class="card shadow mb-4">
+        <div class="card-header bg-warning text-dark">
+            <h5 class="mb-0"><i class="fas fa-lightbulb me-2"></i>Simulation Features</h5>
+        </div>
+        <div class="card-body">
+            <ul>
+                <li>Multiple hospitals (nodes) train local models and share only model hashes.</li>
+                <li>Global model is aggregated and its hash is shown for each round.</li>
+                <li>Simulate tampering by selecting a round and node—see how the system detects it.</li>
+                <li>All steps are logged for audit and presentation.</li>
+            </ul>
+            <p class="small text-muted">No real patient data is used. This is a safe, modular simulation for demonstration only.</p>
+        </div>
+    </div>
+</div>
+{% endblock %}

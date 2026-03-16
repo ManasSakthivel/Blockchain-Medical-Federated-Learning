@@ -24,15 +24,29 @@ RETINAL_DISEASES = [
     'MH'   # Macular Hole
 ]
 
-# Load the AI model for retinal disease classification (hashmap)
+# Load the AI model for retinal disease classification
 def load_retinal_model():
+    """
+    Load the AI model. Supports Keras (.h5) or generic pickle (.pkl) models.
+    """
     try:
+        # Check for Keras model first (Preferred for CNNs)
+        keras_model_path = os.path.join(current_app.root_path, 'models', 'retinal_cnn.h5')
+        if os.path.exists(keras_model_path):
+            import tensorflow as tf
+            return tf.keras.models.load_model(keras_model_path)
+
+        # Fallback to the prototype hash-map / pickle model
         model_path = os.path.join(current_app.root_path, 'models', 'model.pkl')
-        with open(model_path, 'rb') as f:
-            model = pickle.load(f)
-        return model
+        if os.path.exists(model_path):
+            with open(model_path, 'rb') as f:
+                model = pickle.load(f)
+            return model
+            
+        print("⚠️ No retinal model found. AI classification will be disabled.")
+        return None
     except Exception as e:
-        print(f"Error loading model: {e}")
+        print(f"❌ Error loading model: {e}")
         return None
 
 def hash_image(image_path):
@@ -46,38 +60,47 @@ def hash_image(image_path):
         return None
 
 def classify_retinal_disease(image_path):
-    """Classify retinal disease using the hash-based model."""
+    """
+    Classify retinal disease using either a CNN model or a hash-map fallback.
+    """
     model = load_retinal_model()
     if model is None:
-        print("Model not available")
-        return "Model not available", 0.0
+        return "AI Module Offline", 0.0
+
     try:
+        # 1. If it's a Keras/TensorFlow model, do real inference
+        if hasattr(model, 'predict'):
+            from PIL import Image
+            import numpy as np
+            
+            # Preprocessing (matching standard ImageNet/Medical input)
+            img = Image.open(image_path).convert('RGB').resize((224, 224))
+            img_array = np.array(img) / 255.0
+            img_array = np.expand_dims(img_array, axis=0)
+            
+            predictions = model.predict(img_array)
+            class_idx = np.argmax(predictions[0])
+            confidence = float(np.max(predictions[0]))
+            
+            # Map index to label
+            diagnosis = RETINAL_DISEASES[class_idx] if class_idx < len(RETINAL_DISEASES) else "Unknown"
+            return diagnosis, confidence
+
+        # 2. Fallback: Hash-based lookup (Prototype Mode)
         img_hash = hash_image(image_path)
-        if img_hash is None:
-            print("Image hashing failed")
-            return "Image hashing failed", 0.0
-        
-        print(f"Generated hash: {img_hash}")
-        print(f"Hash length: {len(img_hash)}")
-        print(f"Hash in model: {img_hash in model}")
-        
         if img_hash in model:
             result = model[img_hash]
-            print(f"Found diagnosis: {result}")
-            # result can be a string or a tuple (diagnosis, confidence)
             if isinstance(result, tuple):
                 return result[0], float(result[1])
-            else:
-                return result, 1.0
-        else:
-            print(f"Hash not found in model. Model has {len(model)} entries")
-            # Show a few sample hashes from the model
-            sample_hashes = list(model.keys())[:3]
-            print(f"Sample model hashes: {sample_hashes}")
-            return "Unknown", 0.0
+            return result, 1.0
+        
+        # 3. Honest failure for thesis evaluation
+        print(f"🔍 AI Inference: Image hash {img_hash[:8]}... not in training set.")
+        return "Inconclusive (Requires Specialist Review)", 0.0
+        
     except Exception as e:
-        print(f"Error in classification: {e}")
-        return "Classification failed", 0.0
+        print(f"❌ Error in classification: {e}")
+        return "Internal Error", 0.0
 
 def allowed_file(filename):
     ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'}
