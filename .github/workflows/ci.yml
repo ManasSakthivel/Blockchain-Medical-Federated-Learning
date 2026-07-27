@@ -26,8 +26,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
-          pip install pytest
+          # Use the lean test-only requirements (no web3/IPFS) for speed
+          pip install -r requirements-test.txt
 
       - name: Run unit tests
         run: |
