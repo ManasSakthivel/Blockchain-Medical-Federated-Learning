@@ -16,8 +16,13 @@ evaluation to ensure the security guarantee holds.
 
 import os
 import json
-import requests
 from flask import current_app
+
+try:
+    import requests
+    _REQUESTS_AVAILABLE = True
+except ImportError:
+    _REQUESTS_AVAILABLE = False
 
 
 class IPFSUnavailableError(RuntimeError):
