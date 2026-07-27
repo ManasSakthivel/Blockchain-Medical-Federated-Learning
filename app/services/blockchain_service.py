@@ -1,9 +1,15 @@
 import json
 import hashlib
-from web3 import Web3
-from flask import current_app
 import os
 from dotenv import load_dotenv
+
+# web3 is imported lazily inside connect_to_ganache() so the module can be
+# imported in environments where web3 is not installed (e.g. CI test runner).
+try:
+    from web3 import Web3
+    _WEB3_AVAILABLE = True
+except ImportError:
+    _WEB3_AVAILABLE = False
 
 # Load .env automatically so callers don't have to remember
 load_dotenv()
