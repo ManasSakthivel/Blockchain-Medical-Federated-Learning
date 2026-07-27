@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >=0.4.21;
+pragma solidity ^0.8.20;
 
 import "./Roles.sol";
 
@@ -93,12 +93,13 @@ contract EHRContract {
     // Patient functions
     function addPatient(address patientId, string memory _patientHash, string memory _medicalHistory) public {
         require(admin.has(msg.sender) || doctor.has(msg.sender), "Only admin or doctor can add patients");
+        require(!patient.has(patientId), "Patient already registered");
 
         Patient storage patientInfo = patients[patientId];
         patientInfo.id = patientId;
         patientInfo.patientHash = _patientHash;
         patientInfo.medicalHistory = _medicalHistory;
-        
+
         patientIds.push(patientId);
         patient.add(patientId);
     }
@@ -116,10 +117,38 @@ contract EHRContract {
         return patient.has(id);
     }
 
+    // ── Consent contract interface (cross-contract consent gate) ───────────────
+    // Set by admin after deploying ConsentContract.  Zero address = gate disabled.
+    address public consentContractAddress;
+
+    function setConsentContract(address _addr) public {
+        require(admin.has(msg.sender), "Only admin can set consent contract");
+        consentContractAddress = _addr;
+    }
+
+    // Minimal interface so we don't need to import the full ConsentContract
+    function _hasConsent(address _patient, address _doctor, string memory _dataType)
+        internal view returns (bool)
+    {
+        if (consentContractAddress == address(0)) return true; // gate disabled
+        (bool ok, bytes memory data) = consentContractAddress.staticcall(
+            abi.encodeWithSignature(
+                "hasConsent(address,address,string)",
+                _patient, _doctor, _dataType
+            )
+        );
+        if (!ok || data.length == 0) return false;
+        return abi.decode(data, (bool));
+    }
+
     // Medical Record functions
     function addMedicalRecord(address _patientId, address _doctorId, string memory _recordHash, string memory _ipfsHash) public {
         require(doctor.has(msg.sender), "Only doctors can add medical records");
         require(patient.has(_patientId), "Patient must be registered");
+        require(
+            _hasConsent(_patientId, msg.sender, "medical_record"),
+            "Patient has not granted consent for medical record access"
+        );
 
         recordCounter++;
         

@@ -1,0 +1,79 @@
+version: "3.9"
+# ──────────────────────────────────────────────────────────────────────────────
+# Podman-compatible docker-compose
+# ──────────────────────────────────────────────────────────────────────────────
+# Usage:
+#   podman-compose up -d          (preferred — uses Podman natively)
+#   docker-compose up -d          (also works with Docker Desktop / Rancher)
+#
+# First-time Podman setup:
+#   podman machine start          (macOS — starts the Linux VM)
+#   pip install podman-compose    (if not already installed)
+# ──────────────────────────────────────────────────────────────────────────────
+
+services:
+  # ── Local Ethereum blockchain (Ganache) ─────────────────────────────────────
+  ganache:
+    image: docker.io/trufflesuite/ganache:latest
+    container_name: ganache
+    ports:
+      - "7545:7545"
+    command:
+      - "--deterministic"
+      - "--mnemonic=blockchain medical federated learning smart contract dev"
+      - "--accounts=10"
+      - "--balance=1000"
+      - "--port=7545"
+      - "--chain.chainId=1337"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:7545 || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── IPFS node ────────────────────────────────────────────────────────────────
+  ipfs:
+    image: docker.io/ipfs/kubo:latest
+    container_name: ipfs
+    ports:
+      - "4001:4001"   # swarm
+      - "5001:5001"   # API
+      - "8080:8080"   # gateway
+    volumes:
+      - ipfs_data:/data/ipfs
+    environment:
+      - IPFS_PROFILE=server
+    healthcheck:
+      test: ["CMD", "ipfs", "id"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Flask web application ─────────────────────────────────────────────────────
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: blockchain_medical_fl_web
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=1
+      - DATABASE_URL=sqlite:////app/instance/ehr.db
+      - GANACHE_URL=http://ganache:7545
+      - IPFS_URL=http://ipfs:5001
+      - SECRET_KEY=dev-secret-change-in-production
+    volumes:
+      - .:/app
+      - web_uploads:/app/app/static/uploads
+    depends_on:
+      ganache:
+        condition: service_healthy
+      ipfs:
+        condition: service_healthy
+    command: python3 run.py
+
+volumes:
+  ipfs_data:
+  web_uploads:

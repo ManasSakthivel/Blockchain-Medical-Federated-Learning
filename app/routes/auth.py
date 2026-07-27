@@ -45,10 +45,19 @@ def register():
             flash('Username already taken.', 'error')
             return redirect(url_for('auth.register'))
         
-        # Create user
-        user = User(username=username, email=email, role=role)
+        # Create user — derive DID from a real secp256k1 Ethereum keypair
+        # eth_account.Account.create() generates a genuine private/public keypair;
+        # we store only the public address (no private key ever persisted).
+        from eth_account import Account
+        acct = Account.create()
+        user = User(
+            username=username,
+            email=email,
+            role=role,
+            did=f"did:ethr:{acct.address}",  # e.g. did:ethr:0xAbCd...
+        )
         user.set_password(password)
-        
+
         db.session.add(user)
         db.session.commit()
         

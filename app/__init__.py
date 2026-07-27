@@ -23,7 +23,8 @@ def create_app():
     # Initialize extensions with app
     db.init_app(app)
     login_manager.init_app(app)
-    migrate.init_app(app, db)
+    # Use db_migrations/ to avoid collision with Truffle's migrations/ folder
+    migrate.init_app(app, db, directory="db_migrations")
     
     # Configure login manager
     login_manager.login_view = 'auth.login'

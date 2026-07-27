@@ -1,6 +1,6 @@
-from flask import Blueprint, render_template, redirect, url_for, request, flash
+from flask import Blueprint, render_template, redirect, url_for, request, flash, jsonify
 from flask_login import login_required, current_user
-from app.models import db, Patient, MedicalRecord, Consultation, LabReport, Prescription, LabRequest, Lab
+from app.models import db, Patient, MedicalRecord, Consultation, LabReport, Prescription, LabRequest, Lab, User
 from datetime import datetime, date, time
 
 patient_bp = Blueprint('patient', __name__)
@@ -285,4 +285,135 @@ def view_lab_request(request_id):
         flash('Lab request not found.', 'error')
         return redirect(url_for('patient.lab_requests'))
     
-    return render_template('patient/view_lab_request.html', patient=patient, lab_request=lab_request) 
+    return render_template('patient/view_lab_request.html', patient=patient, lab_request=lab_request)
+
+
+# ---------------------------------------------------------------------------
+# GDPR Article 17 — Right to Erasure ("Right to be Forgotten")
+# ---------------------------------------------------------------------------
+
+@patient_bp.route('/erase-account', methods=['DELETE', 'POST'])
+@login_required
+def erase_account():
+    """
+    GDPR Art. 17 — functional erasure model.
+
+    Off-chain: nullify PII columns in Patient row, delete MedicalRecords,
+    Consultations, Prescriptions, LabReports, LabRequests.
+    On-chain: emit a DataErasureRequested event via GDPRComplianceContract
+    (best-effort; failure does not block erasure).
+    The User row itself is anonymised (email/username replaced by a random
+    token) rather than hard-deleted to preserve FK integrity.
+    """
+    patient = Patient.query.filter_by(user_id=current_user.id).first()
+    if not patient:
+        return jsonify({"status": "error", "message": "Patient profile not found"}), 404
+
+    import hashlib, secrets as sec
+
+    # 1. Delete dependent records off-chain
+    MedicalRecord.query.filter_by(patient_id=patient.id).delete()
+    Prescription.query.filter_by(patient_id=patient.id).delete()
+    LabRequest.query.filter_by(patient_id=patient.id).delete()
+    LabReport.query.filter_by(patient_id=patient.id).delete()
+    Consultation.query.filter_by(patient_id=patient.id).delete()
+
+    # 2. Nullify PII on Patient row
+    patient.first_name = "[ERASED]"
+    patient.last_name = "[ERASED]"
+    patient.date_of_birth = None
+    patient.phone = "0000000000"
+    patient.address = "[ERASED]"
+    patient.emergency_contact = "0000000000"
+    patient.blood_group = None
+    patient.allergies = None
+    patient.medical_history = None
+
+    # 3. Anonymise User row (keep row for FK integrity, strip PII)
+    anon_token = sec.token_hex(8)
+    current_user.email = f"erased_{anon_token}@erased.invalid"
+    current_user.username = f"erased_{anon_token}"
+    current_user.password_hash = "[ERASED]"
+    # Retain DID as audit anchor — do not wipe it
+
+    db.session.commit()
+
+    # 4. Best-effort on-chain erasure event
+    try:
+        from app.services.blockchain_service import BlockchainService
+        bc = BlockchainService()
+        ipfs_cid_placeholder = hashlib.sha256(
+            f"erasure:{current_user.did}:{datetime.utcnow().isoformat()}".encode()
+        ).hexdigest()
+        bc.emit_erasure_event(current_user.did or "unknown", ipfs_cid_placeholder)
+    except Exception:
+        pass  # On-chain emission is best-effort; off-chain erasure already committed
+
+    from flask_login import logout_user
+    logout_user()
+    return jsonify({"status": "ok", "message": "Account erased. All personal data has been deleted."})
+
+
+# ---------------------------------------------------------------------------
+# GDPR Article 7 / Consent Management
+# ---------------------------------------------------------------------------
+
+@patient_bp.route('/consent/grant', methods=['POST'])
+@login_required
+def consent_grant():
+    """
+    Grant consent for a recipient (doctor/lab address) to access a data type.
+    Payload JSON: { "recipient": "0x...", "data_type": "lab_report", "purpose": "treatment" }
+    Emits a ConsentGranted event on-chain via ConsentContract (best-effort).
+    """
+    data = request.get_json(silent=True) or {}
+    recipient = data.get("recipient", "").strip()
+    data_type = data.get("data_type", "").strip()
+    purpose = data.get("purpose", "").strip()
+
+    if not recipient or not data_type or not purpose:
+        return jsonify({"status": "error", "message": "recipient, data_type, and purpose are required"}), 400
+
+    import hashlib
+    purpose_hash = "0x" + hashlib.sha256(purpose.encode()).hexdigest()
+
+    result = {"status": "ok", "did": current_user.did, "recipient": recipient,
+              "data_type": data_type, "purpose_hash": purpose_hash}
+
+    # Best-effort on-chain record
+    try:
+        from app.services.blockchain_service import BlockchainService
+        bc = BlockchainService()
+        bc.grant_consent(recipient, data_type, purpose_hash)
+        result["on_chain"] = True
+    except Exception as exc:
+        result["on_chain"] = False
+        result["on_chain_error"] = str(exc)
+
+    return jsonify(result)
+
+
+@patient_bp.route('/consent/revoke', methods=['POST'])
+@login_required
+def consent_revoke():
+    """
+    Revoke a previously granted consent.
+    Payload JSON: { "consent_id": <int> }
+    """
+    data = request.get_json(silent=True) or {}
+    consent_id = data.get("consent_id")
+    if consent_id is None:
+        return jsonify({"status": "error", "message": "consent_id is required"}), 400
+
+    result = {"status": "ok", "consent_id": consent_id}
+
+    try:
+        from app.services.blockchain_service import BlockchainService
+        bc = BlockchainService()
+        bc.revoke_consent(int(consent_id))
+        result["on_chain"] = True
+    except Exception as exc:
+        result["on_chain"] = False
+        result["on_chain_error"] = str(exc)
+
+    return jsonify(result)
