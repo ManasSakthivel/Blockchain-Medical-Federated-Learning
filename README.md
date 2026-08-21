@@ -1,6 +1,6 @@
 # Blockchain-Powered Decentralized Federated Learning for Medical AI Systems
 
-[![CI](https://github.com/yourusername/blockchain-medical-fl/actions/workflows/ci.yml/badge.svg)](https://github.com/yourusername/blockchain-medical-fl/actions)
+[![CI](https://github.com/ManasSakthivel/Blockchain-Medical-Federated-Learning/actions/workflows/ci.yml/badge.svg)](https://github.com/ManasSakthivel/Blockchain-Medical-Federated-Learning/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 A production-grade implementation of the research paper:
@@ -73,7 +73,7 @@ The implementation is grounded in the following claims from the paper:
 ### Clone
 
 ```bash
-git clone https://github.com/yourusername/blockchain-medical-fl.git
+git clone https://github.com/ManasSakthivel/Blockchain-Medical-Federated-Learning.git
 cd blockchain-medical-fl
 ```
 
