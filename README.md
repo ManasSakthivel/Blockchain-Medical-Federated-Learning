@@ -3,10 +3,10 @@
 [![CI](https://github.com/ManasSakthivel/Blockchain-Medical-Federated-Learning/actions/workflows/ci.yml/badge.svg)](https://github.com/ManasSakthivel/Blockchain-Medical-Federated-Learning/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-A production-grade implementation of the research paper:
+An implementation of the paper:
 
 > **"Blockchain-Powered Decentralized Federated Learning for Medical AI Systems"**
-> — accepted Q3 journal, 2024.
+> — published 2024.
 
 The system combines **differential privacy (DP)**, **secure multi-party computation
 (SMPC)**, **smart-contract-enforced reputation**, and **GDPR-compliant consent
