@@ -276,7 +276,7 @@ MIT — see [LICENSE](LICENSE).
 ## Support
 
 - Create a GitHub issue for bugs or feature requests
-- Contact: [m.sakthivel@example.com](mailto:m.sakthivel@example.com)
+- Contact: [manas.mskg@gmail.com](mailto:manas.mskg@gmail.com)
 
 ## Acknowledgements
 
