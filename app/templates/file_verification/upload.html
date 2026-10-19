@@ -23,6 +23,7 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" enctype="multipart/form-data" id="uploadForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="row">
                             <div class="col-md-6">
                                 <div class="mb-3">
@@ -54,7 +55,7 @@
 
                         <div class="mb-3">
                             <label for="description" class="form-label">File Description</label>
-                            <textarea class="form-control" id="description" name="description" rows="3" 
+                            <textarea class="form-control" id="description" name="description" rows="3"
                                       placeholder="Describe the file content and purpose..."></textarea>
                         </div>
 
@@ -63,7 +64,7 @@
                             <input type="file" class="form-control" id="file" name="file" required>
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
-                                Supported formats: Images (PNG, JPG, GIF, BMP, TIFF), Documents (PDF, DOC, DOCX, TXT, CSV, XLSX), 
+                                Supported formats: Images (PNG, JPG, GIF, BMP, TIFF), Documents (PDF, DOC, DOCX, TXT, CSV, XLSX),
                                 Archives (ZIP, RAR), Videos (MP4, AVI, MOV). Max size: 50MB
                             </div>
                         </div>
@@ -137,7 +138,7 @@
 document.getElementById('uploadForm').addEventListener('submit', function(e) {
     const fileInput = document.getElementById('file');
     const file = fileInput.files[0];
-    
+
     if (file) {
         const maxSize = 50 * 1024 * 1024; // 50MB
         if (file.size > maxSize) {
@@ -145,7 +146,7 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
             alert('File size exceeds 50MB limit. Please choose a smaller file.');
             return;
         }
-        
+
         // Show loading state
         const submitBtn = e.target.querySelector('button[type="submit"]');
         submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Uploading...';
@@ -157,15 +158,15 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
 document.getElementById('file').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
-        const allowedTypes = ['image/', 'application/pdf', 'application/msword', 
+        const allowedTypes = ['image/', 'application/pdf', 'application/msword',
                             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                             'text/', 'application/vnd.ms-excel',
                             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                             'application/zip', 'application/x-rar-compressed',
                             'video/'];
-        
+
         const isValidType = allowedTypes.some(type => file.type.startsWith(type));
-        
+
         if (!isValidType) {
             alert('File type not supported. Please choose a different file.');
             this.value = '';

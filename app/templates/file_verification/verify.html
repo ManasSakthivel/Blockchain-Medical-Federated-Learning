@@ -23,9 +23,10 @@
                 </div>
                 <div class="card-body">
                     <form method="POST" enctype="multipart/form-data" id="verifyForm">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <div class="mb-3">
                             <label for="file_id" class="form-label">File ID *</label>
-                            <input type="number" class="form-control" id="file_id" name="file_id" required 
+                            <input type="number" class="form-control" id="file_id" name="file_id" required
                                    placeholder="Enter the File ID to verify">
                             <div class="form-text">
                                 <i class="fas fa-info-circle me-1"></i>
@@ -44,7 +45,7 @@
 
                         <div class="mb-3">
                             <label for="notes" class="form-label">Verification Notes</label>
-                            <textarea class="form-control" id="notes" name="notes" rows="3" 
+                            <textarea class="form-control" id="notes" name="notes" rows="3"
                                       placeholder="Optional notes about this verification..."></textarea>
                         </div>
 
@@ -135,7 +136,7 @@
 document.getElementById('verifyForm').addEventListener('submit', function(e) {
     const fileInput = document.getElementById('file');
     const file = fileInput.files[0];
-    
+
     if (file) {
         // Show loading state
         const submitBtn = e.target.querySelector('button[type="submit"]');
@@ -148,15 +149,15 @@ document.getElementById('verifyForm').addEventListener('submit', function(e) {
 document.getElementById('file').addEventListener('change', function(e) {
     const file = e.target.files[0];
     if (file) {
-        const allowedTypes = ['image/', 'application/pdf', 'application/msword', 
+        const allowedTypes = ['image/', 'application/pdf', 'application/msword',
                             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                             'text/', 'application/vnd.ms-excel',
                             'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                             'application/zip', 'application/x-rar-compressed',
                             'video/'];
-        
+
         const isValidType = allowedTypes.some(type => file.type.startsWith(type));
-        
+
         if (!isValidType) {
             alert('File type not supported. Please choose a different file.');
             this.value = '';

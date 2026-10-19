@@ -13,6 +13,7 @@
             </div>
             <div class="card-body p-4" style="background: #f5f0fa; border-bottom-left-radius: 18px; border-bottom-right-radius: 18px;">
                 <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                     <div class="mb-3">
                         <label for="email" class="form-label">Email Address</label>
                         <div class="input-group">

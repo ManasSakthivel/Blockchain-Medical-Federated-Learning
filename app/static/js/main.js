@@ -1,3 +1,21 @@
+// CSRF: every unsafe same-origin fetch() carries the token from <meta name="csrf-token">.
+(function () {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (!meta || !window.fetch) return;
+    const nativeFetch = window.fetch.bind(window);
+    window.fetch = function (input, init) {
+        init = init || {};
+        const method = (init.method || (input && input.method) || 'GET').toUpperCase();
+        if (!['GET', 'HEAD', 'OPTIONS'].includes(method)) {
+            const headers = new Headers(init.headers || (input && input.headers) || {});
+            headers.set('X-CSRFToken', meta.content);
+            init.headers = headers;
+            init.credentials = init.credentials || 'same-origin';
+        }
+        return nativeFetch(input, init);
+    };
+})();
+
 // Main JavaScript for EHR Blockchain System
 
 document.addEventListener('DOMContentLoaded', function() {

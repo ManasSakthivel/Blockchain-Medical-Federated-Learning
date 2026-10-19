@@ -49,7 +49,7 @@
                                         <label class="form-label"><strong>SHA-256 Hash:</strong></label>
                                         <div class="input-group">
                                             <input type="text" class="form-control" value="{{ demo_data.original_hash }}" readonly>
-                                            <button class="btn btn-outline-success" type="button" onclick="copyToClipboard('{{ demo_data.original_hash }}')">
+                                            <button class="btn btn-outline-success" type="button" data-hash="{{ demo_data.original_hash }}" onclick="copyToClipboard(this.dataset.hash)">
                                                 <i class="fas fa-copy"></i>
                                             </button>
                                         </div>
@@ -72,7 +72,7 @@
                                         <label class="form-label"><strong>SHA-256 Hash:</strong></label>
                                         <div class="input-group">
                                             <input type="text" class="form-control" value="{{ demo_data.tampered_hash }}" readonly>
-                                            <button class="btn btn-outline-danger" type="button" onclick="copyToClipboard('{{ demo_data.tampered_hash }}')">
+                                            <button class="btn btn-outline-danger" type="button" data-hash="{{ demo_data.tampered_hash }}" onclick="copyToClipboard(this.dataset.hash)">
                                                 <i class="fas fa-copy"></i>
                                             </button>
                                         </div>
@@ -86,7 +86,7 @@
                             </div>
                         </div>
                     </div>
-                    
+
                     <div class="text-center mt-4">
                         <div class="alert {% if demo_data.hashes_match %}alert-success{% else %}alert-danger{% endif %}">
                             <h5>
@@ -245,7 +245,7 @@ function copyToClipboard(text) {
         const button = event.target;
         const originalHTML = button.innerHTML;
         button.innerHTML = '<i class="fas fa-check"></i>';
-        
+
         setTimeout(function() {
             button.innerHTML = originalHTML;
         }, 1000);

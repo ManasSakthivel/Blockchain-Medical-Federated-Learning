@@ -77,16 +77,16 @@
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
-                                            <a href="{{ url_for('file_verification.view_file', file_id=file.file_id) }}" 
+                                            <a href="{{ url_for('file_verification.view_file', file_id=file.file_id) }}"
                                                class="btn btn-sm btn-outline-info" title="View Details">
                                                 <i class="fas fa-eye"></i>
                                             </a>
-                                            <a href="{{ url_for('file_verification.download_file', file_id=file.file_id) }}" 
+                                            <a href="{{ url_for('file_verification.download_file', file_id=file.file_id) }}"
                                                class="btn btn-sm btn-outline-success" title="Download">
                                                 <i class="fas fa-download"></i>
                                             </a>
-                                            <button type="button" class="btn btn-sm btn-outline-warning" 
-                                                    onclick="showHashInfo('{{ file.file_hash }}')" title="View Hash">
+                                            <button type="button" class="btn btn-sm btn-outline-warning"
+                                                    data-hash="{{ file.file_hash }}" onclick="showHashInfo(this.dataset.hash)" title="View Hash">
                                                 <i class="fas fa-hashtag"></i>
                                             </button>
                                         </div>
@@ -234,14 +234,14 @@ function copyHashToClipboard() {
     const hashInput = document.getElementById('fileHash');
     hashInput.select();
     document.execCommand('copy');
-    
+
     // Show feedback
     const copyBtn = event.target;
     const originalHTML = copyBtn.innerHTML;
     copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
     copyBtn.classList.remove('btn-outline-secondary');
     copyBtn.classList.add('btn-success');
-    
+
     setTimeout(function() {
         copyBtn.innerHTML = originalHTML;
         copyBtn.classList.remove('btn-success');

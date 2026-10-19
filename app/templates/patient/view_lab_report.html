@@ -40,7 +40,7 @@
                             <p><strong>Report ID:</strong> #{{ lab_report.id }}</p>
                             <p><strong>Report Type:</strong> {{ lab_report.report_type.title() }}</p>
                             <p><strong>Date:</strong> {{ lab_report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                            <p><strong>Status:</strong> 
+                            <p><strong>Status:</strong>
                                 {% if lab_report.status == 'pending' %}
                                     <span class="badge bg-warning">Pending</span>
                                 {% elif lab_report.status == 'completed' %}
@@ -52,7 +52,7 @@
                                 {% endif %}
                             </p>
                             <p><strong>Amount Charged:</strong> ₹{{ lab_report.amount_charged }}</p>
-                            <p><strong>Payment Status:</strong> 
+                            <p><strong>Payment Status:</strong>
                                 {% if lab_report.is_paid %}
                                     <span class="badge bg-success">Paid</span>
                                 {% else %}
@@ -103,7 +103,7 @@
                                     </div>
                                 </div>
                             {% endif %}
-                            
+
                             {% if lab_report.findings %}
                                 <div class="row mb-3">
                                     <div class="col-12">
@@ -112,7 +112,7 @@
                                     </div>
                                 </div>
                             {% endif %}
-                            
+
                             {% if lab_report.recommendations %}
                                 <div class="row mb-3">
                                     <div class="col-12">
@@ -121,7 +121,7 @@
                                     </div>
                                 </div>
                             {% endif %}
-                            
+
                             {% if not lab_report.diagnosis and not lab_report.findings %}
                                 <p class="text-muted">No diagnosis or findings available yet.</p>
                             {% endif %}
@@ -131,7 +131,7 @@
             </div>
 
             <!-- Image (if available) -->
-            {% if lab_report.image_path %}
+            {% if lab_report.stored_file_id %}
             <div class="row mb-4">
                 <div class="col-12">
                     <div class="card">
@@ -141,9 +141,9 @@
                             </h5>
                         </div>
                         <div class="card-body text-center">
-                            <img src="{{ url_for('static', filename=lab_report.image_path) }}" 
-                                 alt="Lab Scan" 
-                                 class="img-fluid" 
+                            <img src="{{ url_for('file_verification.inline_image', file_id=lab_report.stored_file_id) }}"
+                                 alt="Lab Scan"
+                                 class="img-fluid"
                                  style="max-height: 400px;">
                         </div>
                     </div>
@@ -180,7 +180,7 @@
                                 <p><strong>Date:</strong> {{ lab_report.consultation.date.strftime('%Y-%m-%d') }}</p>
                                 <p><strong>Time:</strong> {{ lab_report.consultation.time.strftime('%H:%M') }}</p>
                                 <p><strong>Reason:</strong> {{ lab_report.consultation.reason[:100] }}{% if lab_report.consultation.reason|length > 100 %}...{% endif %}</p>
-                                <p><strong>Status:</strong> 
+                                <p><strong>Status:</strong>
                                     {% if lab_report.consultation.status == 'scheduled' %}
                                         <span class="badge bg-warning">Scheduled</span>
                                     {% elif lab_report.consultation.status == 'in_progress' %}
@@ -229,4 +229,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}

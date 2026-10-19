@@ -97,7 +97,7 @@
                         <label class="form-label"><strong>SHA-256 Hash (Stored on Blockchain):</strong></label>
                         <div class="input-group">
                             <input type="text" class="form-control" value="{{ file_record.file_hash }}" readonly>
-                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('{{ file_record.file_hash }}')">
+                            <button class="btn btn-outline-secondary" type="button" data-hash="{{ file_record.file_hash }}" onclick="copyToClipboard(this.dataset.hash)">
                                 <i class="fas fa-copy"></i> Copy
                             </button>
                         </div>
@@ -106,7 +106,7 @@
                             This hash is permanently stored on the blockchain and cannot be altered. It serves as the reference for file integrity verification.
                         </div>
                     </div>
-                    
+
                     <div class="alert alert-info">
                         <h6><i class="fas fa-shield-alt me-2"></i>Hash Verification</h6>
                         <p class="mb-0">
@@ -222,15 +222,15 @@
                 </div>
                 <div class="card-body">
                     <div class="d-grid gap-2">
-                        <a href="{{ url_for('file_verification.download_file', file_id=file_record.file_id) }}" 
+                        <a href="{{ url_for('file_verification.download_file', file_id=file_record.file_id) }}"
                            class="btn btn-outline-success">
                             <i class="fas fa-download me-2"></i>Download File
                         </a>
-                        <a href="{{ url_for('file_verification.verify_file') }}" 
+                        <a href="{{ url_for('file_verification.verify_file') }}"
                            class="btn btn-outline-warning">
                             <i class="fas fa-search me-2"></i>Verify Integrity
                         </a>
-                        <button type="button" class="btn btn-outline-info" 
+                        <button type="button" class="btn btn-outline-info"
                                 onclick="showHashComparison()">
                             <i class="fas fa-balance-scale me-2"></i>Hash Comparison
                         </button>
@@ -309,7 +309,7 @@
                     <label class="form-label"><strong>Original Hash (Blockchain):</strong></label>
                     <div class="input-group">
                         <input type="text" class="form-control" value="{{ file_record.file_hash }}" readonly>
-                        <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('{{ file_record.file_hash }}')">
+                        <button class="btn btn-outline-secondary" type="button" data-hash="{{ file_record.file_hash }}" onclick="copyToClipboard(this.dataset.hash)">
                             <i class="fas fa-copy"></i>
                         </button>
                     </div>
@@ -352,7 +352,7 @@ function copyToClipboard(text) {
         button.innerHTML = '<i class="fas fa-check"></i>';
         button.classList.remove('btn-outline-secondary');
         button.classList.add('btn-success');
-        
+
         setTimeout(function() {
             button.innerHTML = originalHTML;
             button.classList.remove('btn-success');

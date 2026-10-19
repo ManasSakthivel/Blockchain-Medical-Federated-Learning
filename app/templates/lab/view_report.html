@@ -25,10 +25,10 @@
                     <div class="row">
                         <div class="col-md-6">
                             <p><strong>Report ID:</strong> #{{ report.id }}</p>
-                            <p><strong>Report Type:</strong> 
+                            <p><strong>Report Type:</strong>
                                 <span class="badge bg-primary">{{ report.report_type.title() }}</span>
                             </p>
-                            <p><strong>Status:</strong> 
+                            <p><strong>Status:</strong>
                                 <span class="badge {% if report.status == 'completed' %}bg-success{% elif report.status == 'pending' %}bg-warning{% else %}bg-info{% endif %}">
                                     {{ report.status.title() }}
                                 </span>
@@ -38,14 +38,14 @@
                         <div class="col-md-6">
                             <p><strong>Created:</strong> {{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</p>
                             <p><strong>Updated:</strong> {{ report.updated_at.strftime('%Y-%m-%d %H:%M') }}</p>
-                            <p><strong>Payment Status:</strong> 
+                            <p><strong>Payment Status:</strong>
                                 <span class="badge {% if report.is_paid %}bg-success{% else %}bg-warning{% endif %}">
                                     {{ 'Paid' if report.is_paid else 'Pending' }}
                                 </span>
                             </p>
                         </div>
                     </div>
-                    
+
                     {% if report.diagnosis %}
                     <div class="mt-3">
                         <h6>AI Diagnosis:</h6>
@@ -57,14 +57,14 @@
                         </div>
                     </div>
                     {% endif %}
-                    
+
                     {% if report.findings %}
                     <div class="mt-3">
                         <h6>Findings:</h6>
                         <p class="text-muted">{{ report.findings }}</p>
                     </div>
                     {% endif %}
-                    
+
                     {% if report.recommendations %}
                     <div class="mt-3">
                         <h6>Recommendations:</h6>
@@ -74,15 +74,15 @@
                 </div>
             </div>
 
-            {% if report.image_path %}
+            {% if report.stored_file_id %}
             <div class="card shadow mt-4">
                 <div class="card-header">
                     <h5 class="mb-0">Uploaded Image</h5>
                 </div>
                 <div class="card-body text-center">
-                    <img src="{{ url_for('static', filename=report.image_path) }}" 
-                         alt="Lab Report Image" 
-                         class="img-fluid rounded" 
+                    <img src="{{ url_for('file_verification.inline_image', file_id=report.stored_file_id) }}"
+                         alt="Lab Report Image"
+                         class="img-fluid rounded"
                          style="max-height: 400px;">
                 </div>
             </div>
@@ -140,4 +140,4 @@
         </div>
     </div>
 </div>
-{% endblock %} 
+{% endblock %}
