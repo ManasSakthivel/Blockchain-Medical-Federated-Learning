@@ -1,16 +1,9 @@
-# Minimal dependencies for the pytest unit test suite.
-# CI uses this instead of the full requirements.txt to avoid heavy
-# web3 / IPFS installs that are not needed for offline unit tests.
-Flask==2.3.3
-Flask-SQLAlchemy==3.0.5
-Flask-Login==0.6.3
-Flask-Migrate==4.0.5
-Werkzeug==2.3.7
-python-dotenv==1.0.0
-Pillow==10.0.1
-numpy==1.25.2
-scikit-learn==1.3.0
-pandas==2.1.0
-requests==2.31.0
-eth-account==0.9.0
-pytest
+# Test / quality tooling on top of the runtime requirements.
+-r requirements.txt
+pytest>=8,<10
+ruff>=0.5
+pip-audit>=2.7
+bandit>=1.7
+# Optional: Solidity integration tests (skipped automatically if absent).
+py-solc-x>=2.0
+eth-tester[py-evm]>=0.12.0b1

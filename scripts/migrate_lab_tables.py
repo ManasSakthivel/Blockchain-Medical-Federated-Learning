@@ -4,7 +4,6 @@ Migration script to add lab-related tables
 """
 
 from app import create_app, db
-from app.models import Lab, LabReport, Prescription, MedicalRecord
 
 def migrate_lab_tables():
     app = create_app()
