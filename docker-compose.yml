@@ -1,28 +1,20 @@
-version: "3.9"
-# ──────────────────────────────────────────────────────────────────────────────
-# Podman-compatible docker-compose
-# ──────────────────────────────────────────────────────────────────────────────
-# Usage:
-#   podman-compose up -d          (preferred — uses Podman natively)
-#   docker-compose up -d          (also works with Docker Desktop / Rancher)
+# Local development stack (NOT a production deployment; not exercised in the audit
+# environment because Docker was unavailable).
 #
-# First-time Podman setup:
-#   podman machine start          (macOS — starts the Linux VM)
-#   pip install podman-compose    (if not already installed)
-# ──────────────────────────────────────────────────────────────────────────────
-
+#   cp .env.example .env     # then fill SECRET_KEY, FILE_KEK, ANCHOR_HMAC_KEY
+#   docker compose up --build
+#
+# All published ports are bound to 127.0.0.1. Ganache runs with a deterministic
+# PUBLIC mnemonic: its accounts are known to everyone, so never send real funds
+# to them or reuse them anywhere else.
 services:
-  # ── Local Ethereum blockchain (Ganache) ─────────────────────────────────────
   ganache:
-    image: docker.io/trufflesuite/ganache:latest
-    container_name: ganache
+    image: docker.io/trufflesuite/ganache:v7.9.2
     ports:
-      - "7545:7545"
+      - "127.0.0.1:7545:7545"
     command:
       - "--deterministic"
-      - "--mnemonic=blockchain medical federated learning smart contract dev"
       - "--accounts=10"
-      - "--balance=1000"
       - "--port=7545"
       - "--chain.chainId=1337"
     healthcheck:
@@ -31,49 +23,40 @@ services:
       timeout: 3s
       retries: 10
 
-  # ── IPFS node ────────────────────────────────────────────────────────────────
   ipfs:
-    image: docker.io/ipfs/kubo:latest
-    container_name: ipfs
+    image: docker.io/ipfs/kubo:v0.29.0
     ports:
-      - "4001:4001"   # swarm
-      - "5001:5001"   # API
-      - "8080:8080"   # gateway
+      - "127.0.0.1:5001:5001"
     volumes:
       - ipfs_data:/data/ipfs
-    environment:
-      - IPFS_PROFILE=server
     healthcheck:
       test: ["CMD", "ipfs", "id"]
       interval: 10s
       timeout: 5s
       retries: 5
 
-  # ── Flask web application ─────────────────────────────────────────────────────
   web:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: blockchain_medical_fl_web
     ports:
-      - "5000:5000"
+      - "127.0.0.1:5000:5000"
+    env_file:
+      - .env
     environment:
-      - FLASK_ENV=development
-      - FLASK_DEBUG=1
-      - DATABASE_URL=sqlite:////app/instance/ehr.db
-      - GANACHE_URL=http://ganache:7545
-      - IPFS_URL=http://ipfs:5001
-      - SECRET_KEY=dev-secret-change-in-production
+      DATABASE_URL: sqlite:////data/ehr.db
+      UPLOAD_DIR: /data/uploads
+      # Plain HTTP on localhost: the Secure cookie flag would break login.
+      SESSION_COOKIE_SECURE: "false"
+      BLOCKCHAIN_RPC_URL: http://ganache:7545
+      IPFS_API_URL: http://ipfs:5001
     volumes:
-      - .:/app
-      - web_uploads:/app/app/static/uploads
+      - web_data:/data
     depends_on:
       ganache:
         condition: service_healthy
       ipfs:
         condition: service_healthy
-    command: python3 run.py
 
 volumes:
   ipfs_data:
-  web_uploads:
+  web_data:

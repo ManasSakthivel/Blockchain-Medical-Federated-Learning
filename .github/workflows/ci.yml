@@ -2,40 +2,41 @@ name: CI
 
 on:
   push:
-    branches: ["main", "dev"]
+    branches: ["main", "dev", "remediation/**"]
   pull_request:
     branches: ["main"]
 
+permissions:
+  contents: read
+
 jobs:
   test:
-    name: pytest — FL + App Tests
+    name: tests + lint + security scan
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ["3.11"]
-
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.python-version }}
+          python-version: "3.11"
           cache: "pip"
 
-      - name: Install dependencies
+      - name: Install (full runtime + test requirements)
         run: |
           python -m pip install --upgrade pip
-          # Use the lean test-only requirements (no web3/IPFS) for speed
           pip install -r requirements-test.txt
 
-      - name: Run unit tests
-        run: |
-          pytest tests/test_differential_privacy.py \
-                 tests/test_federated_simulation.py \
-                 tests/test_app_models_routes.py \
-                 -v --tb=short
+      - name: Lint (ruff, pyflakes + syntax; see ruff.toml)
+        run: ruff check .
 
-      - name: Summary
-        if: always()
-        run: echo "CI complete — see test results above."
+      - name: Static security scan (bandit, medium+ severity)
+        run: bandit -q -r app run.py scripts -ll
+
+      - name: Dependency audit
+        run: pip-audit -r requirements.txt
+
+      - name: Tests (includes Solidity tests on the in-memory eth-tester EVM; no Ganache)
+        env:
+          SECRET_KEY: ci-only-not-a-secret-0123456789abcdef0123456789abcdef
+          DATABASE_URL: sqlite:///:memory:
+        run: pytest tests -q

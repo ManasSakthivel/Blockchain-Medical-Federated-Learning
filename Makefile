@@ -8,7 +8,7 @@
 #   make ablation     Run the 4-condition ablation study
 #   make plot         Generate convergence / epsilon / overhead charts
 #   make db-upgrade   Apply pending database migrations
-#   make docker-up    Spin up Ganache + IPFS + web (Podman preferred, Docker fallback)
+#   make docker-up    Spin up Ganache + IPFS + web (needs .env; see .env.example)
 #   make docker-down  Tear down the stack
 #   make clean        Remove compiled Python files and cached data
 
@@ -16,13 +16,7 @@ PYTHON   ?= python3
 PIP      ?= pip3
 PYTEST   ?= $(PYTHON) -m pytest
 
-# ── Detect compose command ────────────────────────────────────────────────────
-# Tries (in order): podman-compose binary, python3 -m podman_compose, docker-compose
-COMPOSE := $(shell \
-    command -v podman-compose 2>/dev/null \
-    || (python3 -c "import podman_compose" 2>/dev/null && echo "python3 -m podman_compose") \
-    || command -v docker-compose 2>/dev/null \
-    || echo "podman-compose")
+COMPOSE ?= docker compose
 
 # ── Environment setup ─────────────────────────────────────────────────────────
 
@@ -30,15 +24,13 @@ COMPOSE := $(shell \
 setup:
 	$(PIP) install --upgrade pip
 	$(PIP) install -r requirements.txt
-	$(PIP) install pytest
-	# podman-compose may already be installed; install if missing
-	python3 -c "import podman_compose" 2>/dev/null || $(PIP) install podman-compose
+	$(PIP) install -r requirements-test.txt
 
 # ── Run the Flask application ─────────────────────────────────────────────────
 
 .PHONY: run
 run:
-	$(PYTHON) run.py
+	EHR_DEV_MODE=$${EHR_DEV_MODE:-1} $(PYTHON) run.py
 
 # ── Database migrations ───────────────────────────────────────────────────────
 
@@ -54,16 +46,13 @@ db-migrate:
 
 .PHONY: test
 test:
-	$(PYTEST) tests/test_differential_privacy.py \
-	          tests/test_federated_simulation.py \
-	          tests/test_app_models_routes.py \
-	          -v --tb=short
+	$(PYTEST) tests -q
 
 # ── Benchmark ─────────────────────────────────────────────────────────────────
 
 .PHONY: benchmark
 benchmark:
-	$(PYTHON) app/benchmark.py
+	$(PYTHON) -m app.benchmark
 
 .PHONY: ablation
 ablation:
@@ -79,22 +68,15 @@ plot:
 
 .PHONY: docker-up
 docker-up:
-	@echo "Using compose: $(COMPOSE)"
-	@# Start Podman machine on macOS if needed
-	@podman machine start 2>/dev/null || true
-	python3 -m podman_compose up --build -d
-	@echo ""
-	@echo "  Ganache  → http://localhost:7545"
-	@echo "  IPFS     → http://localhost:5001"
-	@echo "  Web app  → http://localhost:5000"
+	$(COMPOSE) up --build -d
 
 .PHONY: docker-down
 docker-down:
-	python3 -m podman_compose down
+	$(COMPOSE) down
 
 .PHONY: docker-logs
 docker-logs:
-	python3 -m podman_compose logs -f
+	$(COMPOSE) logs -f
 
 # ── Clean ─────────────────────────────────────────────────────────────────────
 

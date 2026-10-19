@@ -46,3 +46,4 @@ yarn-error.log*
 data/benchmark_results.json
 data/ablation_results.json
 app/benchmark_results.json
+data/benchmark_summary.txt

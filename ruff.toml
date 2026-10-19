@@ -1,0 +1,6 @@
+# Lint gate used by CI: pyflakes (unused names, undefined names) + syntax errors.
+line-length = 110
+target-version = "py311"
+
+[lint]
+select = ["E9", "F"]
