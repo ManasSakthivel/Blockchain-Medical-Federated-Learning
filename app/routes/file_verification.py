@@ -1,298 +1,290 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app, send_file
-from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
-import os
-import json
-from datetime import datetime
-from app.models import db, User, Patient, Doctor, Lab
-from app.services.file_verification_service import FileVerificationService
+import hmac
 import io
+import logging
 
+from flask import (Blueprint, flash, jsonify, redirect, render_template, request,
+                   send_file, url_for)
+from flask_login import current_user
+
+from app.access import (TREATING_STATUSES, can_access_file, can_upload_for_patient,
+                        roles_required)
+from app.models import (Consultation, Doctor, Lab, LabRequest,
+                        Patient, StoredFile, User, VerificationLog, db)
+from app.services import anchoring, file_store
+from app.services.crypto_service import DecryptionError
+
+log = logging.getLogger(__name__)
 file_verification_bp = Blueprint('file_verification', __name__)
 
-@file_verification_bp.route('/upload', methods=['GET', 'POST'])
-@login_required
-def upload_file():
-    """Secure file upload with blockchain verification"""
-    if current_user.role not in ['doctor', 'lab', 'admin']:
-        flash('Access denied. Only doctors, labs, and admins can upload files.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
-    if request.method == 'POST':
-        # Get form data
-        patient_email = request.form.get('patient_email')
-        file_description = request.form.get('description')
-        file_category = request.form.get('category', 'medical')
-        
-        # Validate required fields
-        if not patient_email:
-            flash('Patient email is required.', 'error')
-            return redirect(url_for('file_verification.upload_file'))
-        
-        # Find patient
-        patient_user = User.query.filter_by(email=patient_email, role='patient').first()
-        if not patient_user:
-            flash('Patient not found.', 'error')
-            return redirect(url_for('file_verification.upload_file'))
-        
-        patient = Patient.query.filter_by(user_id=patient_user.id).first()
-        if not patient:
-            flash('Patient profile not found.', 'error')
-            return redirect(url_for('file_verification.upload_file'))
-        
-        # Handle file upload
-        if 'file' not in request.files:
-            flash('No file selected.', 'error')
-            return redirect(url_for('file_verification.upload_file'))
-        
-        file = request.files['file']
-        if not file or not file.filename:
-            flash('No file selected.', 'error')
-            return redirect(url_for('file_verification.upload_file'))
-        
-        # Prepare metadata
-        metadata = {
-            "description": file_description,
-            "category": file_category,
-            "uploaded_by_user": current_user.email,
-            "uploaded_by_role": current_user.role
-        }
-        
-        # Upload file securely
-        result = file_service.upload_file_secure(
-            file=file,
-            patient_id=patient.id,
-            metadata=metadata
+CATEGORIES = ('medical', 'lab_report', 'prescription', 'imaging', 'other')
+UPLOADER_ROLES = ('patient', 'doctor', 'lab')
+ALL_ROLES = ('patient', 'doctor', 'lab')
+
+
+def _record(stored: StoredFile) -> dict:
+    """Template-friendly view of a StoredFile. Contains no storage secrets."""
+    return {
+        'file_id': stored.id,
+        'file_name': stored.original_filename,
+        'file_type': stored.extension,
+        'file_size': stored.size_bytes,
+        'timestamp': int(stored.created_at.timestamp()) if stored.created_at else None,
+        'is_valid': not stored.is_erased,
+        'uploaded_by': stored.uploaded_by.username if stored.uploaded_by else '-',
+        'patient_id': stored.patient_id,
+        'ipfs_hash': stored.ipfs_cid or '(not stored on IPFS)',
+        'file_hash': stored.anchor_digest,
+        'anchor_status': stored.anchor_status,
+        'ipfs_status': stored.ipfs_status,
+        'metadata': {'description': stored.description, 'category': stored.category},
+    }
+
+
+def _get_authorised(file_id):
+    """Load a file the current user may access, else None (uniform 'not found')."""
+    stored = db.session.get(StoredFile, file_id)
+    return stored if can_access_file(current_user, stored) else None
+
+
+def _accessible_patients():
+    """Return the patients the current user may upload files for.
+
+    F-10: For lab and doctor roles the access filter is pushed into SQL so the
+    function never loads all patients into Python memory.
+    The patient role path is already a single indexed lookup (unchanged).
+    Authorization is enforced independently in _do_upload() → can_upload_for_patient();
+    this function only populates the upload-form dropdown.
+    """
+    if current_user.role == 'patient':
+        mine = Patient.query.filter_by(user_id=current_user.id).first()
+        return [mine] if mine else []
+
+    if current_user.role == 'lab':
+        lab = Lab.query.filter_by(user_id=current_user.id).first()
+        if lab is None:
+            return []
+        return (
+            Patient.query
+            .join(LabRequest, LabRequest.patient_id == Patient.id)
+            .filter(
+                LabRequest.lab_id == lab.id,
+                LabRequest.status.in_(('pending', 'approved', 'completed')),
+                Patient.erased_at.is_(None),
+            )
+            .distinct()
+            .all()
         )
-        
-        if result['success']:
-            flash(f'File uploaded successfully! File ID: {result["file_id"]}', 'success')
-            return redirect(url_for('file_verification.view_file', file_id=result['file_id']))
-        else:
-            flash(f'Upload failed: {result["error"]}', 'error')
-    
-    # Get patients for dropdown
-    patients = Patient.query.join(User).filter(User.role == 'patient').all()
-    
-    return render_template('file_verification/upload.html', patients=patients)
+
+    if current_user.role == 'doctor':
+        doctor = Doctor.query.filter_by(user_id=current_user.id).first()
+        if doctor is None:
+            return []
+        return (
+            Patient.query
+            .join(Consultation, Consultation.patient_id == Patient.id)
+            .filter(
+                Consultation.doctor_id == doctor.id,
+                Consultation.status.in_(TREATING_STATUSES),
+                Patient.erased_at.is_(None),
+            )
+            .distinct()
+            .all()
+        )
+
+    return []
+
+
+def _do_upload(patient: Patient, file, description: str, category: str):
+    if not can_upload_for_patient(current_user, patient):
+        raise file_store.UploadRejected('You are not allowed to upload files for this patient.')
+    if category not in CATEGORIES:
+        raise file_store.UploadRejected('Invalid category.')
+    if not file or not file.filename:
+        raise file_store.UploadRejected('No file selected.')
+    data = file.read(file_store.MAX_BYTES + 1)
+    stored = file_store.store_file(
+        patient_id=patient.id, uploader_user_id=current_user.id, filename=file.filename,
+        data=data, category=category)
+    stored.description = (description or '')[:500] or None
+    db.session.flush()
+    outcome = anchoring.anchor_file(stored.public_id, stored.anchor_digest)
+    stored.anchor_status = outcome.status if outcome.status != 'unavailable' else 'unavailable'
+    stored.chain_file_id, stored.chain_tx = outcome.object_id, outcome.tx_hash
+    db.session.commit()
+    return stored
+
+
+@file_verification_bp.route('/upload', methods=['GET', 'POST'])
+@roles_required(*UPLOADER_ROLES)
+def upload_file():
+    if request.method == 'POST':
+        email = (request.form.get('patient_email') or '').strip().lower()
+        user = User.query.filter_by(email=email, role='patient').first() if email else None
+        patient = Patient.query.filter_by(user_id=user.id).first() if user else None
+        try:
+            if patient is None:  # same answer as "not permitted": no e-mail enumeration
+                raise file_store.UploadRejected('You are not allowed to upload files for this patient.')
+            stored = _do_upload(patient, request.files.get('file'),
+                                request.form.get('description'),
+                                request.form.get('category', 'medical'))
+        except file_store.UploadRejected as exc:
+            db.session.rollback()
+            flash(str(exc), 'error')
+            return redirect(url_for('file_verification.upload_file'))
+        flash(f'File uploaded (encrypted). File ID: {stored.id}. '
+              f'Blockchain anchor: {stored.anchor_status}.', 'success')
+        return redirect(url_for('file_verification.view_file', file_id=stored.id))
+    return render_template('file_verification/upload.html', patients=_accessible_patients())
+
 
 @file_verification_bp.route('/verify', methods=['GET', 'POST'])
-@login_required
+@roles_required(*ALL_ROLES)
 def verify_file():
-    """Verify file integrity"""
-    if current_user.role not in ['doctor', 'lab', 'admin', 'patient']:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
     if request.method == 'POST':
-        file_id = request.form.get('file_id')
-        verification_notes = request.form.get('notes', '')
-        
-        if not file_id:
-            flash('File ID is required.', 'error')
+        try:
+            file_id = int(request.form.get('file_id', ''))
+        except ValueError:
+            flash('A numeric file ID is required.', 'error')
             return redirect(url_for('file_verification.verify_file'))
-        
-        # Handle file upload for verification
-        if 'file' not in request.files:
+        upload = request.files.get('file')
+        if not upload or not upload.filename:
             flash('No file selected for verification.', 'error')
             return redirect(url_for('file_verification.verify_file'))
-        
-        file = request.files['file']
-        if not file or not file.filename:
-            flash('No file selected for verification.', 'error')
+        result = _verify(file_id, upload.read(file_store.MAX_BYTES + 1),
+                         (request.form.get('notes') or '')[:500])
+        if result is None:
+            flash('File not found.', 'error')
             return redirect(url_for('file_verification.verify_file'))
-        
-        # Read file content
-        file_content = file.read()
-        
-        # Verify file integrity
-        result = file_service.verify_file_integrity(
-            file_id=int(file_id),
-            file_bytes=file_content
-        )
-        
-        if result['success']:
-            if result['is_match']:
-                flash('File integrity verified successfully! File has not been tampered with.', 'success')
-            else:
-                flash('WARNING: File integrity check failed! File may have been tampered with.', 'error')
-            
-            return render_template('file_verification/verification_result.html', result=result)
-        else:
-            flash(f'Verification failed: {result["error"]}', 'error')
-    
+        flash('File integrity verified: the file is identical to the stored original.'
+              if result['is_match'] else
+              'WARNING: this file does NOT match the stored original.',
+              'success' if result['is_match'] else 'error')
+        return render_template('file_verification/verification_result.html', result=result)
     return render_template('file_verification/verify.html')
 
+
+def _verify(file_id: int, data: bytes, notes: str):
+    stored = _get_authorised(file_id)
+    if stored is None:
+        return None
+    crypto = file_store.get_crypto()
+    current = crypto.anchor_digest(data)
+    is_match = hmac.compare_digest(current, stored.anchor_digest)
+    outcome = anchoring.record_verification(stored.chain_file_id, is_match)
+    log_row = VerificationLog(stored_file_id=stored.id, verified_by_user_id=current_user.id,
+                              is_match=is_match, notes=notes or None,
+                              chain_status=outcome.status, chain_tx=outcome.tx_hash)
+    db.session.add(log_row)
+    db.session.commit()
+    return {'success': True, 'is_match': is_match, 'file_record': _record(stored),
+            'original_hash': stored.anchor_digest, 'current_hash': current,
+            'verification_log_id': log_row.id, 'chain_status': outcome.status}
+
+
 @file_verification_bp.route('/file/<int:file_id>')
-@login_required
+@roles_required(*ALL_ROLES)
 def view_file(file_id):
-    """View file details and verification history"""
-    if current_user.role not in ['doctor', 'lab', 'admin', 'patient']:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
-    # Get file record from blockchain
-    file_record = file_service.blockchain_service.get_file_record(file_id)
-    if not file_record:
+    stored = _get_authorised(file_id)
+    if stored is None:
         flash('File not found.', 'error')
         return redirect(url_for('file_verification.list_files'))
-    
-    # Get verification logs
-    verification_logs = file_service.get_verification_logs(file_id)
-    
-    return render_template('file_verification/view_file.html', 
-                         file_record=file_record, 
-                         verification_logs=verification_logs)
+    logs = [{'log_id': v.id, 'timestamp': int(v.created_at.timestamp()),
+             'verified_by': v.verified_by.username if v.verified_by else '-',
+             'is_match': v.is_match, 'notes': v.notes}
+            for v in sorted(stored.verifications, key=lambda v: v.created_at, reverse=True)]
+    return render_template('file_verification/view_file.html',
+                           file_record=_record(stored), verification_logs=logs)
+
 
 @file_verification_bp.route('/files')
-@login_required
+@roles_required(*ALL_ROLES)
 def list_files():
-    """List all files uploaded by the user"""
-    if current_user.role not in ['doctor', 'lab', 'admin']:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
-    # Get user's files using the current account address
-    user_files = file_service.get_user_files(file_service.blockchain_service.account)
-    
-    # Get file details for each file ID
-    files = []
-    for file_id in user_files:
-        file_record = file_service.blockchain_service.get_file_record(file_id)
-        if file_record:
-            files.append(file_record)
-    
+    rows = StoredFile.query.filter(StoredFile.erased_at.is_(None)).order_by(
+        StoredFile.created_at.desc()).all()
+    files = [_record(s) for s in rows if can_access_file(current_user, s)]
     return render_template('file_verification/list_files.html', files=files)
 
+
 @file_verification_bp.route('/demo/tamper')
-@login_required
+@roles_required(*ALL_ROLES)
 def demo_tamper():
-    """Demonstrate file tampering detection"""
-    if current_user.role not in ['doctor', 'lab', 'admin']:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
-    # Create a demo file
-    demo_content = b"This is a demo medical record file for testing integrity verification."
-    demo_filename = "demo_medical_record.txt"
-    
-    # Save demo file
-    upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'demo')
-    os.makedirs(upload_dir, exist_ok=True)
-    demo_path = os.path.join(upload_dir, demo_filename)
-    
-    with open(demo_path, 'wb') as f:
-        f.write(demo_content)
-    
-    # Create tampered version
-    tampered_path = file_service.create_tampered_file_demo(demo_path)
-    
-    if tampered_path:
-        # Calculate hashes
-        original_hash = file_service.calculate_file_hash(demo_path)
-        tampered_hash = file_service.calculate_file_hash(tampered_path)
-        
-        demo_data = {
-            'original_file': demo_path,
-            'tampered_file': tampered_path,
-            'original_hash': original_hash,
-            'tampered_hash': tampered_hash,
-            'hashes_match': original_hash == tampered_hash
-        }
-        
-        return render_template('file_verification/demo_tamper.html', demo_data=demo_data)
-    else:
-        flash('Failed to create demo files.', 'error')
-        return redirect(url_for('file_verification.upload_file'))
+    """In-memory demo: nothing is written to disk or sent anywhere."""
+    crypto = file_store.get_crypto()
+    original = b"This is a demo medical record file for testing integrity verification."
+    tampered = original + b"\x00"
+    o_hash, t_hash = crypto.anchor_digest(original), crypto.anchor_digest(tampered)
+    return render_template('file_verification/demo_tamper.html', demo_data={
+        'original_file': 'demo_medical_record.txt (in memory)',
+        'tampered_file': 'demo_medical_record.txt + 1 byte (in memory)',
+        'original_hash': o_hash, 'tampered_hash': t_hash,
+        'hashes_match': o_hash == t_hash})
+
 
 @file_verification_bp.route('/download/<int:file_id>')
-@login_required
+@roles_required(*ALL_ROLES)
 def download_file(file_id):
-    """Download file from IPFS"""
-    if current_user.role not in ['doctor', 'lab', 'admin', 'patient']:
-        flash('Access denied.', 'error')
-        return redirect(url_for('main.home'))
-    
-    file_service = FileVerificationService()
-    
-    # Get file record
-    file_record = file_service.blockchain_service.get_file_record(file_id)
-    if not file_record:
+    stored = _get_authorised(file_id)
+    if stored is None:
         flash('File not found.', 'error')
         return redirect(url_for('file_verification.list_files'))
-    
-    # Get file from IPFS
-    file_content = file_service.get_file_from_ipfs(file_record['ipfs_hash'])
-    if not file_content:
-        flash('Failed to retrieve file from IPFS.', 'error')
-        return redirect(url_for('file_verification.view_file', file_id=file_id))
-    
-    # Return file for download
-    return send_file(
-        io.BytesIO(file_content),
-        mimetype='application/octet-stream',
-        as_attachment=True,
-        download_name=file_record['file_name']
-    )
+    try:
+        data = file_store.read_plaintext(stored)
+    except (FileNotFoundError, DecryptionError):
+        flash('This file is no longer available.', 'error')
+        return redirect(url_for('file_verification.list_files'))
+    return send_file(io.BytesIO(data), mimetype='application/octet-stream',
+                     as_attachment=True, download_name=stored.original_filename)
+
+
+@file_verification_bp.route('/view-inline/<int:file_id>')
+@roles_required(*ALL_ROLES)
+def inline_image(file_id):
+    """Authenticated image display for report pages (never cached, never public)."""
+    stored = _get_authorised(file_id)
+    if stored is None or stored.extension not in file_store.IMAGE_EXTENSIONS:
+        return ('Not found', 404)
+    try:
+        data = file_store.read_plaintext(stored)
+    except (FileNotFoundError, DecryptionError):
+        return ('Not found', 404)
+    return send_file(io.BytesIO(data), mimetype=file_store.mime_for(stored))
+
 
 @file_verification_bp.route('/api/upload', methods=['POST'])
-@login_required
+@roles_required(*UPLOADER_ROLES)
 def api_upload_file():
-    """API endpoint for file upload"""
-    if current_user.role not in ['doctor', 'lab', 'admin']:
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    
-    file_service = FileVerificationService()
-    
-    if 'file' not in request.files:
-        return jsonify({'success': False, 'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    patient_id = request.form.get('patient_id')
-    metadata = request.form.get('metadata', '{}')
-    
     try:
-        metadata = json.loads(metadata)
-    except:
-        metadata = {}
-    
-    result = file_service.upload_file_secure(
-        file=file,
-        patient_id=patient_id,
-        metadata=metadata
-    )
-    
-    return jsonify(result)
+        patient = db.session.get(Patient, int(request.form.get('patient_id', '')))
+    except ValueError:
+        return jsonify({'success': False, 'error': 'patient_id must be an integer'}), 400
+    try:
+        if patient is None:
+            raise file_store.UploadRejected('You are not allowed to upload files for this patient.')
+        stored = _do_upload(patient, request.files.get('file'),
+                            request.form.get('description'),
+                            request.form.get('category', 'medical'))
+    except file_store.UploadRejected as exc:
+        db.session.rollback()
+        status = 403 if 'allowed' in str(exc) else 400
+        return jsonify({'success': False, 'error': str(exc)}), status
+    return jsonify({'success': True, 'file_id': stored.id,
+                    'anchor_status': stored.anchor_status})
+
 
 @file_verification_bp.route('/api/verify', methods=['POST'])
-@login_required
+@roles_required(*ALL_ROLES)
 def api_verify_file():
-    """API endpoint for file verification"""
-    if current_user.role not in ['doctor', 'lab', 'admin', 'patient']:
-        return jsonify({'success': False, 'error': 'Access denied'}), 403
-    
-    file_service = FileVerificationService()
-    
-    file_id = request.form.get('file_id')
-    if 'file' not in request.files:
+    try:
+        file_id = int(request.form.get('file_id', ''))
+    except ValueError:
+        return jsonify({'success': False, 'error': 'file_id must be an integer'}), 400
+    upload = request.files.get('file')
+    if not upload:
         return jsonify({'success': False, 'error': 'No file provided'}), 400
-    
-    file = request.files['file']
-    file_content = file.read()
-    
-    result = file_service.verify_file_integrity(
-        file_id=int(file_id),
-        file_bytes=file_content
-    )
-    
-    return jsonify(result)
+    result = _verify(file_id, upload.read(file_store.MAX_BYTES + 1),
+                     (request.form.get('notes') or '')[:500])
+    if result is None:
+        return jsonify({'success': False, 'error': 'File not found'}), 404
+    return jsonify({'success': True, 'is_match': result['is_match'],
+                    'file_id': file_id, 'verification_log_id': result['verification_log_id'],
+                    'chain_status': result['chain_status']})

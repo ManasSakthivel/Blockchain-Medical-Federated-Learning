@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+
+{% block title %}Reports{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="h2 pt-3 pb-2 mb-3 border-bottom">Reports (aggregate counts)</h1>
+    <table class="table">
+        <thead><tr><th></th><th>Last 7 days</th><th>Last 30 days</th></tr></thead>
+        <tbody>
+            <tr><td>New medical records</td><td>{{ weekly_records }}</td><td>{{ monthly_records }}</td></tr>
+            <tr><td>New users</td><td>{{ weekly_users }}</td><td>{{ monthly_users }}</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}

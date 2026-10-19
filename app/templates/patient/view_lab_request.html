@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+
+{% block title %}Lab Request #{{ lab_request.id }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block sidebar"
+             style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
+            <nav class="nav flex-column py-4">
+                <a class="nav-link mb-2" href="{{ url_for('patient.dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.records') }}">
+                    <i class="fas fa-file-medical"></i> Medical Records
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.lab_reports') }}">
+                    <i class="fas fa-microscope"></i> Lab Reports
+                </a>
+                <a class="nav-link mb-2 active" href="{{ url_for('patient.lab_requests') }}">
+                    <i class="fas fa-clipboard-list"></i> Lab Requests
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.prescriptions') }}">
+                    <i class="fas fa-pills"></i> Prescriptions
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.consultations') }}">
+                    <i class="fas fa-calendar-check"></i> Consultations
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.book_consultation') }}">
+                    <i class="fas fa-plus-circle"></i> Book Consultation
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('patient.profile') }}">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2>
+                    <i class="fas fa-clipboard-list me-2"></i>
+                    Lab Request <span class="text-muted">#{{ lab_request.id }}</span>
+                </h2>
+                <a href="{{ url_for('patient.lab_requests') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Requests
+                </a>
+            </div>
+
+            <div class="row">
+                <!-- Request details -->
+                <div class="col-lg-8">
+                    <div class="card shadow mb-4">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Request Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-1"><span class="text-muted">Request Type:</span></p>
+                                    <span class="badge bg-primary fs-6">
+                                        {{ lab_request.request_type.title() }}
+                                    </span>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1"><span class="text-muted">Status:</span></p>
+                                    <span class="badge fs-6
+                                        {% if lab_request.status == 'pending' %}bg-warning
+                                        {% elif lab_request.status == 'approved' %}bg-info
+                                        {% elif lab_request.status == 'completed' %}bg-success
+                                        {% else %}bg-danger{% endif %}">
+                                        {{ lab_request.status.title() }}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted">Priority</p>
+                                    <span class="badge
+                                        {% if lab_request.priority == 'urgent' %}bg-danger
+                                        {% elif lab_request.priority == 'high' %}bg-warning
+                                        {% elif lab_request.priority == 'normal' %}bg-info
+                                        {% else %}bg-secondary{% endif %}">
+                                        {{ lab_request.priority.title() }}
+                                    </span>
+                                </div>
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted">Requested Date</p>
+                                    <p class="mb-0">
+                                        {{ lab_request.requested_date.strftime('%Y-%m-%d') if lab_request.requested_date else '—' }}
+                                    </p>
+                                </div>
+                            </div>
+
+                            {% if lab_request.completed_date %}
+                            <div class="row mb-3">
+                                <div class="col-md-6">
+                                    <p class="mb-1 text-muted">Completed Date</p>
+                                    <p class="mb-0">{{ lab_request.completed_date.strftime('%Y-%m-%d') }}</p>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <div class="mb-3">
+                                <p class="mb-1 text-muted">Reason for Request</p>
+                                <p class="mb-0 border rounded p-2 bg-light">{{ lab_request.reason }}</p>
+                            </div>
+
+                            {% if lab_request.notes %}
+                            <div class="mb-0">
+                                <p class="mb-1 text-muted">Lab Notes</p>
+                                <p class="mb-0 border rounded p-2 bg-light">{{ lab_request.notes }}</p>
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <!-- Report link if completed -->
+                    {% if lab_request.status == 'completed' and lab_request.lab_report_id %}
+                    <div class="card shadow mb-4 border-success">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0"><i class="fas fa-file-medical me-2"></i>Report Available</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-3">Your lab report has been completed and is ready to view.</p>
+                            <a href="{{ url_for('patient.view_lab_report', report_id=lab_request.lab_report_id) }}"
+                               class="btn btn-success">
+                                <i class="fas fa-eye me-2"></i>View Lab Report
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Doctor and lab info -->
+                <div class="col-lg-4">
+                    <div class="card shadow mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-user-md me-2"></i>Referring Doctor</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-1">
+                                <strong>Dr. {{ lab_request.doctor.first_name }} {{ lab_request.doctor.last_name }}</strong>
+                            </p>
+                            <p class="mb-1 text-muted">{{ lab_request.doctor.specialization }}</p>
+                            <p class="mb-0 text-muted small">{{ lab_request.doctor.phone }}</p>
+                        </div>
+                    </div>
+
+                    <div class="card shadow mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-flask me-2"></i>Assigned Lab</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-1"><strong>{{ lab_request.lab.lab_name }}</strong></p>
+                            <p class="mb-1 text-muted">{{ lab_request.lab.specialization }}</p>
+                            <p class="mb-0 text-muted small">{{ lab_request.lab.phone }}</p>
+                        </div>
+                    </div>
+
+                    {% if lab_request.consultation %}
+                    <div class="card shadow mb-3">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-calendar-check me-2"></i>Related Consultation</h5>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-1 text-muted">
+                                {{ lab_request.consultation.date.strftime('%Y-%m-%d') }}
+                            </p>
+                            <a href="{{ url_for('patient.view_consultation', consultation_id=lab_request.consultation.id) }}"
+                               class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-eye me-1"></i>View Consultation
+                            </a>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

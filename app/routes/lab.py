@@ -1,606 +1,389 @@
-from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify, current_app
-from flask_login import login_required, current_user
-from werkzeug.utils import secure_filename
+import hashlib
+import io
+import logging
 import os
 import pickle
-import hashlib
-from PIL import Image
-import numpy as np
-from datetime import datetime, date
-from app.models import db, User, Lab, LabReport, Patient, Doctor, Consultation, MedicalRecord, LabRequest
-from app.services.blockchain_service import BlockchainService
+from datetime import date, datetime
 
+from flask import (Blueprint, current_app, flash, jsonify, redirect, render_template,
+                   request, url_for)
+from flask_login import current_user, login_user
+from PIL import Image, UnidentifiedImageError
+
+from app.access import current_lab, json_body, password_problem, roles_required
+from app.models import (Consultation, Doctor, LabReport, LabRequest, MedicalRecord,
+                        Patient, User, db)
+from app.services import file_store
+
+log = logging.getLogger(__name__)
 lab_bp = Blueprint('lab', __name__)
 
-# Retinal disease classes for classification (matching model.pkl)
-RETINAL_DISEASES = [
-    'NORMAL',
-    'DR',  # Diabetic Retinopathy
-    'AMD',  # Age-related Macular Degeneration
-    'CNV',  # Choroidal Neovascularization
-    'DME',  # Diabetic Macular Edema
-    'CSR',  # Central Serous Retinopathy
-    'DRUSEN',  # Drusen
-    'MH'   # Macular Hole
-]
+# Retinal disease classes (matching model.pkl)
+RETINAL_DISEASES = ['NORMAL', 'DR', 'AMD', 'CNV', 'DME', 'CSR', 'DRUSEN', 'MH']
+REPORT_TYPES = ('retinal', 'blood', 'urine', 'xray', 'mri', 'other')
+LAB_IMAGE_EXTENSIONS = file_store.IMAGE_EXTENSIONS
+# A lab may only work on requests that a doctor/patient addressed to it.
+OPEN_REQUEST_STATUSES = ('pending', 'approved')
 
-# Load the AI model for retinal disease classification
+
+# ---------------------------------------------------------------------------
+# Prototype classifier. NOTE: model.pkl is an exact-image-hash lookup table,
+# not a trained network; unknown images are reported as inconclusive.
+# ---------------------------------------------------------------------------
+
 def load_retinal_model():
-    """
-    Load the AI model. Supports Keras (.h5) or generic pickle (.pkl) models.
+    """Load a Keras model if present, else the pickled prototype lookup table.
+
+    The pickle is a repository asset (never user supplied). Do not load
+    pickles from any other source.
     """
     try:
-        # Check for Keras model first (Preferred for CNNs)
-        keras_model_path = os.path.join(current_app.root_path, 'models', 'retinal_cnn.h5')
-        if os.path.exists(keras_model_path):
+        keras_path = os.path.join(current_app.root_path, 'models', 'retinal_cnn.h5')
+        if os.path.exists(keras_path):
             import tensorflow as tf
-            return tf.keras.models.load_model(keras_model_path)
-
-        # Fallback to the prototype hash-map / pickle model
+            return tf.keras.models.load_model(keras_path)
         model_path = os.path.join(current_app.root_path, 'models', 'model.pkl')
         if os.path.exists(model_path):
-            with open(model_path, 'rb') as f:
-                model = pickle.load(f)
-            return model
-            
-        print("⚠️ No retinal model found. AI classification will be disabled.")
-        return None
-    except Exception as e:
-        print(f"❌ Error loading model: {e}")
-        return None
+            with open(model_path, 'rb') as fh:
+                return pickle.load(fh)  # nosec B301
+        log.warning('No retinal model found; AI classification disabled.')
+    except Exception:
+        log.exception('Error loading retinal model')
+    return None
 
-def hash_image(image_path):
-    """Hash the image file using MD5 for lookup in the model hashmap."""
-    try:
-        with open(image_path, 'rb') as f:
-            img_bytes = f.read()
-        return hashlib.md5(img_bytes).hexdigest()
-    except Exception as e:
-        print(f"Error hashing image: {e}")
-        return None
 
-def classify_retinal_disease(image_path):
-    """
-    Classify retinal disease using either a CNN model or a hash-map fallback.
-    """
+def classify_retinal_disease(image_bytes: bytes):
+    """Classify in memory. Returns (label, confidence)."""
     model = load_retinal_model()
     if model is None:
-        return "AI Module Offline", 0.0
-
+        return 'AI Module Offline', 0.0
     try:
-        # 1. If it's a Keras/TensorFlow model, do real inference
         if hasattr(model, 'predict'):
-            from PIL import Image
             import numpy as np
-            
-            # Preprocessing (matching standard ImageNet/Medical input)
-            img = Image.open(image_path).convert('RGB').resize((224, 224))
-            img_array = np.array(img) / 255.0
-            img_array = np.expand_dims(img_array, axis=0)
-            
-            predictions = model.predict(img_array)
-            class_idx = np.argmax(predictions[0])
-            confidence = float(np.max(predictions[0]))
-            
-            # Map index to label
-            diagnosis = RETINAL_DISEASES[class_idx] if class_idx < len(RETINAL_DISEASES) else "Unknown"
-            return diagnosis, confidence
-
-        # 2. Fallback: Hash-based lookup (Prototype Mode)
-        img_hash = hash_image(image_path)
-        if img_hash in model:
-            result = model[img_hash]
+            img = Image.open(io.BytesIO(image_bytes)).convert('RGB').resize((224, 224))
+            arr = np.expand_dims(np.array(img) / 255.0, axis=0)
+            preds = model.predict(arr)
+            idx = int(np.argmax(preds[0]))
+            label = RETINAL_DISEASES[idx] if idx < len(RETINAL_DISEASES) else 'Unknown'
+            return label, float(np.max(preds[0]))
+        # Prototype lookup keyed by MD5 of the file (lookup key only, not security)
+        key = hashlib.md5(image_bytes, usedforsecurity=False).hexdigest()
+        if key in model:
+            result = model[key]
             if isinstance(result, tuple):
                 return result[0], float(result[1])
             return result, 1.0
-        
-        # 3. Honest failure for thesis evaluation
-        print(f"🔍 AI Inference: Image hash {img_hash[:8]}... not in training set.")
-        return "Inconclusive (Requires Specialist Review)", 0.0
-        
-    except Exception as e:
-        print(f"❌ Error in classification: {e}")
-        return "Internal Error", 0.0
+        return 'Inconclusive (Requires Specialist Review)', 0.0
+    except Exception:
+        log.exception('Error in classification')
+        return 'Internal Error', 0.0
 
-def allowed_file(filename):
-    ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'bmp', 'tiff'}
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _lab_or_redirect():
+    lab = current_lab()
+    if lab is None:
+        flash('Lab profile not found.', 'error')
+    return lab
+
+
+def _lab_requests_for(lab):
+    return LabRequest.query.filter(
+        LabRequest.lab_id == lab.id, LabRequest.status.in_(OPEN_REQUEST_STATUSES))
+
+
+def _verify_image(data: bytes):
+    try:
+        Image.open(io.BytesIO(data)).verify()
+    except (UnidentifiedImageError, OSError, SyntaxError):
+        raise file_store.UploadRejected('The uploaded file is not a valid image.')
+
+
+def _read_upload():
+    file = request.files.get('image')
+    if not file or not file.filename:
+        raise file_store.UploadRejected('No image file selected.')
+    data = file.read(file_store.MAX_BYTES + 1)
+    file_store.validate_upload(file.filename, data, allowed=LAB_IMAGE_EXTENSIONS)
+    _verify_image(data)
+    return file.filename, data
+
+
+def _create_report(*, lab, patient_id, doctor_id, consultation_id, report_type,
+                   filename, data, lab_request=None):
+    """Store the encrypted image, create the report + medical record atomically."""
+    stored = file_store.store_file(
+        patient_id=patient_id, uploader_user_id=current_user.id, filename=filename,
+        data=data, category='lab_report', allowed=LAB_IMAGE_EXTENSIONS)
+    diagnosis = confidence = None
+    if report_type == 'retinal':
+        diagnosis, confidence = classify_retinal_disease(data)
+
+    db.session.flush()  # assigns stored.id
+    report = LabReport(
+        patient_id=patient_id, doctor_id=doctor_id, lab_id=lab.id,
+        consultation_id=consultation_id, report_type=report_type,
+        stored_file_id=stored.id, diagnosis=diagnosis, confidence_score=confidence,
+        findings=request.form.get('findings'),
+        recommendations=request.form.get('recommendations'),
+        status='completed', amount_charged=1000.0, is_paid=True)
+    db.session.add(report)
+    db.session.flush()  # report.id is needed by the medical record (A-06)
+
+    if lab_request is not None:
+        lab_request.status = 'completed'
+        lab_request.completed_date = date.today()
+        lab_request.lab_report_id = report.id
+        lab_request.notes = request.form.get('notes')
+        lab_request.updated_at = datetime.utcnow()
+
+    db.session.add(MedicalRecord(
+        patient_id=patient_id, record_type='lab_report', record_id=report.id,
+        title=f'Lab Report - {report_type.title()}',
+        description=f'Report completed by {lab.lab_name}', date=date.today()))
+    db.session.commit()
+    return report
+
+
+def _resolve_target():
+    """Resolve patient / doctor / consultation from the upload form.
+
+    The lab may only upload for a patient+doctor pair that has an OPEN request
+    addressed to this lab, and a consultation id must belong to that pair.
+    """
+    lab = current_lab()
+    patient_email = (request.form.get('patient_email') or '').strip().lower()
+    doctor_email = (request.form.get('doctor_email') or '').strip().lower()
+    report_type = (request.form.get('report_type') or '').strip()
+    if not patient_email or not doctor_email or report_type not in REPORT_TYPES:
+        raise file_store.UploadRejected('Patient e-mail, doctor e-mail and a valid report type are required.')
+
+    p_user = User.query.filter_by(email=patient_email, role='patient').first()
+    d_user = User.query.filter_by(email=doctor_email, role='doctor').first()
+    patient = Patient.query.filter_by(user_id=p_user.id).first() if p_user else None
+    doctor = Doctor.query.filter_by(user_id=d_user.id).first() if d_user else None
+    # Same message for every failure: do not reveal which e-mails exist (A-13).
+    not_authorised = file_store.UploadRejected(
+        'No open request from this doctor and patient is addressed to your lab.')
+    if not patient or not doctor or patient.erased_at is not None:
+        raise not_authorised
+    if not _lab_requests_for(lab).filter_by(patient_id=patient.id, doctor_id=doctor.id).first():
+        raise not_authorised
+
+    consultation_id = None
+    raw = (request.form.get('consultation_id') or '').strip()
+    if raw:
+        try:
+            consultation_id = int(raw)
+        except ValueError:
+            raise file_store.UploadRejected('Invalid consultation.')
+        c = db.session.get(Consultation, consultation_id)
+        if not c or c.patient_id != patient.id or c.doctor_id != doctor.id:
+            raise file_store.UploadRejected('Invalid consultation.')
+    return patient, doctor, consultation_id, report_type
+
+
+def _upload_view(template, success_message, **extra):
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
+    endpoint = 'lab.' + request.endpoint.split('.')[-1]
+    if request.method == 'POST':
+        try:
+            patient, doctor, consultation_id, report_type = _resolve_target()
+            filename, data = _read_upload()
+            _create_report(lab=lab, patient_id=patient.id, doctor_id=doctor.id,
+                           consultation_id=consultation_id, report_type=report_type,
+                           filename=filename, data=data)
+        except file_store.UploadRejected as exc:
+            db.session.rollback()
+            flash(str(exc), 'error')
+            return redirect(url_for(endpoint))
+        flash(success_message, 'success')
+        return redirect(url_for('lab.reports'))
+
+    consultations = Consultation.query.join(
+        LabRequest, LabRequest.consultation_id == Consultation.id).filter(
+        LabRequest.lab_id == lab.id).all()
+    return render_template(template, lab=lab, consultations=consultations, **extra)
+
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @lab_bp.route('/dashboard')
-@login_required
+@roles_required('lab')
 def dashboard():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
-    # Get statistics
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
     total_reports = LabReport.query.filter_by(lab_id=lab.id).count()
     pending_reports = LabReport.query.filter_by(lab_id=lab.id, status='pending').count()
     completed_reports = LabReport.query.filter_by(lab_id=lab.id, status='completed').count()
-    total_revenue = db.session.query(db.func.sum(LabReport.amount_charged)).filter_by(lab_id=lab.id, is_paid=True).scalar() or 0
-    
-    # Get recent reports
-    recent_reports = LabReport.query.filter_by(lab_id=lab.id).order_by(LabReport.created_at.desc()).limit(5).all()
-    
-    return render_template('lab/dashboard.html', 
-                         lab=lab,
-                         total_reports=total_reports,
-                         pending_reports=pending_reports,
-                         completed_reports=completed_reports,
-                         total_revenue=total_revenue,
-                         recent_reports=recent_reports)
+    total_revenue = db.session.query(db.func.sum(LabReport.amount_charged)).filter_by(
+        lab_id=lab.id, is_paid=True).scalar() or 0
+    recent_reports = LabReport.query.filter_by(lab_id=lab.id).order_by(
+        LabReport.created_at.desc()).limit(5).all()
+    return render_template('lab/dashboard.html', lab=lab, total_reports=total_reports,
+                           pending_reports=pending_reports, completed_reports=completed_reports,
+                           total_revenue=total_revenue, recent_reports=recent_reports)
+
 
 @lab_bp.route('/upload-report', methods=['GET', 'POST'])
-@login_required
+@roles_required('lab')
 def upload_report():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
-    if request.method == 'POST':
-        patient_email = request.form.get('patient_email')
-        doctor_email = request.form.get('doctor_email')
-        report_type = request.form.get('report_type')
-        consultation_id = request.form.get('consultation_id')
-        
-        # Validate required fields
-        if not all([patient_email, doctor_email, report_type]):
-            flash('All fields are required.', 'error')
-            return redirect(url_for('lab.upload_report'))
-        
-        # Find patient and doctor
-        patient_user = User.query.filter_by(email=patient_email, role='patient').first()
-        doctor_user = User.query.filter_by(email=doctor_email, role='doctor').first()
-        
-        if not patient_user or not doctor_user:
-            flash('Patient or doctor not found.', 'error')
-            return redirect(url_for('lab.upload_report'))
-        
-        patient = Patient.query.filter_by(user_id=patient_user.id).first()
-        doctor = Doctor.query.filter_by(user_id=doctor_user.id).first()
-        
-        if not patient or not doctor:
-            flash('Patient or doctor profile not found.', 'error')
-            return redirect(url_for('lab.upload_report'))
-        
-        # Handle file upload
-        if 'image' not in request.files:
-            flash('No image file selected.', 'error')
-            return redirect(url_for('lab.upload_report'))
-        
-        file = request.files['image']
-        if not file or not file.filename:
-            flash('No image file selected.', 'error')
-            return redirect(url_for('lab.upload_report'))
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{timestamp}_{filename}"
-            
-            # Create upload directory if it doesn't exist
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'lab_reports')
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            file_path = os.path.join(upload_dir, filename)
-            file.save(file_path)
-            
-            # AI Classification for retinal images
-            diagnosis = None
-            confidence_score = None
-            if report_type == 'retinal':
-                diagnosis, confidence_score = classify_retinal_disease(file_path)
-            
-            # Create lab report
-            lab_report = LabReport(
-                patient_id=patient.id,
-                doctor_id=doctor.id,
-                lab_id=lab.id,
-                consultation_id=consultation_id if consultation_id else None,
-                report_type=report_type,
-                image_path=f'uploads/lab_reports/{filename}',
-                diagnosis=diagnosis,
-                confidence_score=confidence_score,
-                findings=request.form.get('findings'),
-                recommendations=request.form.get('recommendations'),
-                status='completed',
-                amount_charged=1000.0,
-                is_paid=True
-            )
-            
-            db.session.add(lab_report)
-            
-            # Create medical record entry
-            medical_record = MedicalRecord(
-                patient_id=patient.id,
-                record_type='lab_report',
-                record_id=lab_report.id,
-                title=f'Lab Report - {report_type.title()}',
-                description=f'Report uploaded by {lab.lab_name}',
-                date=date.today()
-            )
-            
-            db.session.add(medical_record)
-            db.session.commit()
-            
-            flash('Lab report uploaded successfully!', 'success')
-            return redirect(url_for('lab.reports'))
-        else:
-            flash('Invalid file type. Please upload an image.', 'error')
-    
-    # Get consultations for dropdown
-    consultations = Consultation.query.filter_by(status='completed').all()
-    
-    return render_template('lab/upload_report.html', lab=lab, consultations=consultations)
+    return _upload_view('lab/upload_report.html', 'Lab report uploaded successfully!')
+
+
+@lab_bp.route('/upload-scan', methods=['GET', 'POST'])
+@roles_required('lab')
+def upload_scan():
+    return _upload_view('lab/upload_scan.html', 'Lab report uploaded successfully!',
+                        retinal_diseases=RETINAL_DISEASES)
+
 
 @lab_bp.route('/reports')
-@login_required
+@roles_required('lab')
 def reports():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
-    reports = LabReport.query.filter_by(lab_id=lab.id).order_by(LabReport.created_at.desc()).all()
-    
-    return render_template('lab/reports.html', lab=lab, reports=reports)
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
+    items = LabReport.query.filter_by(lab_id=lab.id).order_by(LabReport.created_at.desc()).all()
+    return render_template('lab/reports.html', lab=lab, reports=items)
+
 
 @lab_bp.route('/report/<int:report_id>')
-@login_required
+@roles_required('lab')
 def view_report(report_id):
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
     report = LabReport.query.filter_by(id=report_id, lab_id=lab.id).first()
     if not report:
         flash('Report not found.', 'error')
         return redirect(url_for('lab.reports'))
-    
     return render_template('lab/view_report.html', lab=lab, report=report)
 
+
 @lab_bp.route('/profile', methods=['GET', 'POST'])
-@login_required
+@roles_required('lab')
 def profile():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
     if request.method == 'POST':
-        lab.lab_name = request.form.get('lab_name')
-        lab.phone = request.form.get('phone')
-        lab.address = request.form.get('address')
-        lab.specialization = request.form.get('specialization')
+        name = (request.form.get('lab_name') or '').strip()
+        if not name:
+            flash('Lab name is required.', 'error')
+            return redirect(url_for('lab.profile'))
+        lab.lab_name = name[:100]
+        lab.phone = (request.form.get('phone') or lab.phone)[:15]
+        lab.address = request.form.get('address') or lab.address
+        lab.specialization = (request.form.get('specialization') or lab.specialization)[:100]
         lab.updated_at = datetime.utcnow()
-        
         db.session.commit()
         flash('Profile updated successfully!', 'success')
         return redirect(url_for('lab.profile'))
-    
     return render_template('lab/profile.html', lab=lab)
 
-@lab_bp.route('/api/patients')
-@login_required
-def api_patients():
-    if current_user.role != 'lab':
-        return jsonify({'error': 'Access denied'}), 403
-    
-    patients = Patient.query.all()
-    patient_data = []
-    for patient in patients:
-        user = User.query.get(patient.user_id)
-        patient_data.append({
-            'id': patient.id,
-            'name': f"{patient.first_name} {patient.last_name}",
-            'email': user.email,
-            'phone': patient.phone
-        })
-    
-    return jsonify(patient_data)
-
-@lab_bp.route('/api/doctors')
-@login_required
-def api_doctors():
-    if current_user.role != 'lab':
-        return jsonify({'error': 'Access denied'}), 403
-    
-    doctors = Doctor.query.all()
-    doctor_data = []
-    for doctor in doctors:
-        user = User.query.get(doctor.user_id)
-        doctor_data.append({
-            'id': doctor.id,
-            'name': f"Dr. {doctor.first_name} {doctor.last_name}",
-            'email': user.email,
-            'specialization': doctor.specialization
-        })
-    
-    return jsonify(doctor_data) 
 
 @lab_bp.route('/requests')
-@login_required
+@roles_required('lab')
 def requests():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
-    # Get all lab requests for this lab
-    requests = LabRequest.query.filter_by(lab_id=lab.id).order_by(LabRequest.created_at.desc()).all()
-    
-    return render_template('lab/requests.html', lab=lab, requests=requests)
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
+    items = LabRequest.query.filter_by(lab_id=lab.id).order_by(LabRequest.created_at.desc()).all()
+    return render_template('lab/requests.html', lab=lab, requests=items)
+
 
 @lab_bp.route('/request/<int:request_id>')
-@login_required
+@roles_required('lab')
 def view_request(request_id):
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
     lab_request = LabRequest.query.filter_by(id=request_id, lab_id=lab.id).first()
     if not lab_request:
         flash('Request not found.', 'error')
         return redirect(url_for('lab.requests'))
-    
     return render_template('lab/view_request.html', lab=lab, lab_request=lab_request)
 
+
 @lab_bp.route('/request/<int:request_id>/process', methods=['GET', 'POST'])
-@login_required
+@roles_required('lab')
 def process_request(request_id):
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
+    lab = _lab_or_redirect()
+    if lab is None:
+        return redirect(url_for('main.home'))
     lab_request = LabRequest.query.filter_by(id=request_id, lab_id=lab.id).first()
     if not lab_request:
         flash('Request not found.', 'error')
         return redirect(url_for('lab.requests'))
-    
+    if lab_request.status not in OPEN_REQUEST_STATUSES:
+        flash(f"This request is already '{lab_request.status}'.", 'error')
+        return redirect(url_for('lab.requests'))
+
     if request.method == 'POST':
-        # Handle file upload
-        if 'image' not in request.files:
-            flash('No image file selected.', 'error')
+        try:
+            filename, data = _read_upload()
+            _create_report(lab=lab, patient_id=lab_request.patient_id,
+                           doctor_id=lab_request.doctor_id,
+                           consultation_id=lab_request.consultation_id,
+                           report_type=lab_request.request_type, filename=filename,
+                           data=data, lab_request=lab_request)
+        except file_store.UploadRejected as exc:
+            db.session.rollback()
+            flash(str(exc), 'error')
             return redirect(url_for('lab.process_request', request_id=request_id))
-        
-        file = request.files['image']
-        if not file or not file.filename:
-            flash('No image file selected.', 'error')
-            return redirect(url_for('lab.process_request', request_id=request_id))
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{timestamp}_{filename}"
-            
-            # Create upload directory if it doesn't exist
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'lab_reports')
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            file_path = os.path.join(upload_dir, filename)
-            file.save(file_path)
-            
-            # AI Classification for retinal images
-            diagnosis = None
-            confidence_score = None
-            if lab_request.request_type == 'retinal':
-                diagnosis, confidence_score = classify_retinal_disease(file_path)
-            
-            # Create lab report
-            lab_report = LabReport(
-                patient_id=lab_request.patient_id,
-                doctor_id=lab_request.doctor_id,
-                lab_id=lab.id,
-                consultation_id=lab_request.consultation_id,
-                report_type=lab_request.request_type,
-                image_path=f'uploads/lab_reports/{filename}',
-                diagnosis=diagnosis,
-                confidence_score=confidence_score,
-                findings=request.form.get('findings'),
-                recommendations=request.form.get('recommendations'),
-                status='completed',
-                amount_charged=1000.0,
-                is_paid=True
-            )
-            
-            db.session.add(lab_report)
-            db.session.flush()  # Get the ID of the created report
-            
-            # Update lab request
-            lab_request.status = 'completed'
-            lab_request.completed_date = date.today()
-            lab_request.lab_report_id = lab_report.id
-            lab_request.notes = request.form.get('notes')
-            lab_request.updated_at = datetime.utcnow()
-            
-            # Create medical record entry
-            medical_record = MedicalRecord(
-                patient_id=lab_request.patient_id,
-                record_type='lab_report',
-                record_id=lab_report.id,
-                title=f'Lab Report - {lab_request.request_type.title()}',
-                description=f'Report completed by {lab.lab_name}',
-                date=date.today()
-            )
-            
-            db.session.add(medical_record)
-            db.session.commit()
-            
-            flash('Lab report completed and sent to patient!', 'success')
-            return redirect(url_for('lab.requests'))
-        else:
-            flash('Invalid file type. Please upload an image.', 'error')
-    
+        flash('Lab report completed and sent to patient!', 'success')
+        return redirect(url_for('lab.requests'))
+
     return render_template('lab/process_request.html', lab=lab, lab_request=lab_request)
 
-@lab_bp.route('/upload-scan', methods=['GET', 'POST'])
-@login_required
-def upload_scan():
-    if current_user.role != 'lab':
-        flash('Access denied. Lab access only.', 'error')
-        return redirect(url_for('auth.login'))
-    
-    lab = Lab.query.filter_by(user_id=current_user.id).first()
-    if not lab:
-        flash('Lab profile not found.', 'error')
-        return redirect(url_for('auth.logout'))
-    
-    if request.method == 'POST':
-        patient_email = request.form.get('patient_email')
-        doctor_email = request.form.get('doctor_email')
-        report_type = request.form.get('report_type')
-        consultation_id = request.form.get('consultation_id')
-        
-        # Validate required fields
-        if not all([patient_email, doctor_email, report_type]):
-            flash('All fields are required.', 'error')
-            return redirect(url_for('lab.upload_scan'))
-        
-        # Find patient and doctor
-        patient_user = User.query.filter_by(email=patient_email, role='patient').first()
-        doctor_user = User.query.filter_by(email=doctor_email, role='doctor').first()
-        
-        if not patient_user or not doctor_user:
-            flash('Patient or doctor not found.', 'error')
-            return redirect(url_for('lab.upload_scan'))
-        
-        patient = Patient.query.filter_by(user_id=patient_user.id).first()
-        doctor = Doctor.query.filter_by(user_id=doctor_user.id).first()
-        
-        if not patient or not doctor:
-            flash('Patient or doctor profile not found.', 'error')
-            return redirect(url_for('lab.upload_scan'))
-        
-        # Handle file upload
-        if 'image' not in request.files:
-            flash('No image file selected.', 'error')
-            return redirect(url_for('lab.upload_scan'))
-        
-        file = request.files['image']
-        if not file or not file.filename:
-            flash('No image file selected.', 'error')
-            return redirect(url_for('lab.upload_scan'))
-        
-        if file and allowed_file(file.filename):
-            filename = secure_filename(file.filename)
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            filename = f"{timestamp}_{filename}"
-            
-            # Create upload directory if it doesn't exist
-            upload_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'lab_reports')
-            os.makedirs(upload_dir, exist_ok=True)
-            
-            file_path = os.path.join(upload_dir, filename)
-            file.save(file_path)
-            
-            # AI Classification for retinal images
-            diagnosis = None
-            confidence_score = None
-            if report_type == 'retinal':
-                diagnosis, confidence_score = classify_retinal_disease(file_path)
-            
-            # Create lab report
-            lab_report = LabReport(
-                patient_id=patient.id,
-                doctor_id=doctor.id,
-                lab_id=lab.id,
-                consultation_id=consultation_id if consultation_id else None,
-                report_type=report_type,
-                image_path=f'uploads/lab_reports/{filename}',
-                diagnosis=diagnosis,
-                confidence_score=confidence_score,
-                findings=request.form.get('findings'),
-                recommendations=request.form.get('recommendations'),
-                status='completed',
-                amount_charged=1000.0,
-                is_paid=True
-            )
-            
-            db.session.add(lab_report)
-            
-            # Create medical record entry
-            medical_record = MedicalRecord(
-                patient_id=patient.id,
-                record_type='lab_report',
-                record_id=lab_report.id,
-                title=f'Lab Report - {report_type.title()}',
-                description=f'Report uploaded by {lab.lab_name}',
-                date=date.today()
-            )
-            
-            db.session.add(medical_record)
-            db.session.commit()
-            
-            flash('Lab report uploaded successfully with AI diagnosis!', 'success')
-            return redirect(url_for('lab.reports'))
-        else:
-            flash('Invalid file type. Please upload an image.', 'error')
-    
-    # Get consultations for dropdown
-    consultations = Consultation.query.filter_by(status='completed').all()
-    
-    return render_template('lab/upload_scan.html', lab=lab, consultations=consultations, retinal_diseases=RETINAL_DISEASES) 
 
 @lab_bp.route('/detect', methods=['POST'])
-@login_required
+@roles_required('lab')
 def detect():
-    if current_user.role != 'lab':
-        return jsonify({'success': False, 'message': 'Access denied.'}), 403
-    if 'image' not in request.files:
-        return jsonify({'success': False, 'message': 'No image uploaded.'}), 400
-    file = request.files['image']
-    report_type = request.form.get('report_type')
-    if not file or not allowed_file(file.filename):
-        return jsonify({'success': False, 'message': 'Invalid or missing image file.'}), 400
-    if report_type != 'retinal':
-        return jsonify({'success': False, 'message': 'AI detection is only available for retinal scans.'}), 400
-    # Save file temporarily
-    temp_dir = os.path.join(current_app.root_path, 'static', 'uploads', 'temp')
-    os.makedirs(temp_dir, exist_ok=True)
-    temp_path = os.path.join(temp_dir, secure_filename(file.filename))
-    file.save(temp_path)
-    # Run AI detection
-    diagnosis, confidence = classify_retinal_disease(temp_path)
-    # Remove temp file
+    if (request.form.get('report_type') or '') != 'retinal':
+        return jsonify({'success': False,
+                        'message': 'AI detection is only available for retinal scans.'}), 400
     try:
-        os.remove(temp_path)
-    except Exception:
-        pass
-    return jsonify({'success': True, 'diagnosis': diagnosis, 'confidence': confidence}) 
+        _, data = _read_upload()
+    except file_store.UploadRejected as exc:
+        return jsonify({'success': False, 'message': str(exc)}), 400
+    diagnosis, confidence = classify_retinal_disease(data)  # in memory: no temp file
+    return jsonify({'success': True, 'diagnosis': diagnosis, 'confidence': confidence})
+
+
+@lab_bp.route('/profile/change-password', methods=['POST'])
+@roles_required('lab')
+def change_password():
+    """F-02: authenticated lab users can rotate their own password.
+
+    Accepts JSON ``{current_password, new_password, confirm_password}``.
+    Mirrors doctor.change_password: verifies current password, rotates the
+    session token so all other sessions are invalidated, then re-establishes
+    the current session via ``login_user``.
+    """
+    data = json_body()
+    current_password = data.get('current_password') or ''
+    new_password = data.get('new_password') or ''
+    confirm = data.get('confirm_password')
+
+    if not current_user.check_password(current_password):
+        return jsonify({'success': False, 'message': 'Current password is incorrect'}), 403
+    if confirm is not None and new_password != confirm:
+        return jsonify({'success': False, 'message': 'New passwords do not match'}), 400
+    problem = password_problem(new_password)
+    if problem:
+        return jsonify({'success': False, 'message': problem}), 400
+
+    current_user.set_password(new_password)  # also rotates session token
+    db.session.commit()
+    login_user(current_user)  # keep THIS session alive; all others are now invalid
+    return jsonify({'success': True, 'message': 'Password changed successfully'})

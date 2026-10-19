@@ -1,53 +1,53 @@
-import numpy as np
-def federated_simulation():
-    # Generate data for 3 hospitals
-    hospitals = [generate_hospital_data(random_state=i) for i in range(3)]
-    # Run a federated learning round
-    local_hashes, global_hash = federated_round(hospitals, None)  # BlockchainService not needed for display
-    return render_template('federated_simulation.html', local_hashes=local_hashes, global_hash=global_hash)
-
-from flask import Blueprint, render_template, redirect, url_for
+from flask import Blueprint, current_app, redirect, render_template, request, url_for
 from flask_login import current_user
-import numpy as np
 
 from app.federated_sim_engine import FederatedSimulation
 
 main_bp = Blueprint('main', __name__)
 
 
+def _int_arg(name, default=None, lo=None, hi=None):
+    """Parse an integer query argument; fall back to ``default`` when absent/invalid."""
+    raw = request.args.get(name, '')
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    if lo is not None:
+        value = max(lo, value)
+    if hi is not None:
+        value = min(hi, value)
+    return value
+
+
 @main_bp.route('/federated-sim')
 def federated_simulation():
-    # Get params from query string
-    from flask import request
-    n_rounds = int(request.args.get('n_rounds', 3))
-    tamper_round = request.args.get('tamper_round', '')
-    tamper_node = request.args.get('tamper_node', '')
-    try:
-        tamper_round = int(tamper_round) if tamper_round else None
-    except Exception:
-        tamper_round = None
-    try:
-        tamper_node = int(tamper_node)-1 if tamper_node else None
-    except Exception:
-        tamper_node = None
+    """Public demo of the in-process simulation (Cleveland data, 3 nodes, default
+    DP noise). It exposes no user data. The round count is capped (``MAX_SIM_ROUNDS``)
+    so the endpoint cannot be used to burn CPU."""
+    max_rounds = current_app.config.get('MAX_SIM_ROUNDS', 20)
+    n_rounds = _int_arg('n_rounds', default=3, lo=1, hi=max_rounds)
+    tamper_round = _int_arg('tamper_round', lo=1, hi=n_rounds)
+    tamper_node = _int_arg('tamper_node', lo=1, hi=3)
     sim = FederatedSimulation(n_nodes=3, n_rounds=n_rounds)
-    round_logs = sim.run_simulation(tamper_round=tamper_round-1 if tamper_round else None, tamper_node=tamper_node) if n_rounds else []
-    return render_template('federated_simulation.html', round_logs=round_logs, n_rounds=n_rounds, tamper_round=tamper_round, tamper_node=(tamper_node+1 if tamper_node is not None else ''))
+    round_logs = sim.run_simulation(
+        tamper_round=tamper_round - 1 if tamper_round else None,
+        tamper_node=tamper_node - 1 if tamper_node else None,
+    )
+    return render_template('federated_simulation.html', round_logs=round_logs,
+                           n_rounds=n_rounds, tamper_round=tamper_round or '',
+                           tamper_node=tamper_node or '')
+
 
 @main_bp.route('/')
 def home():
     return render_template('main/home.html')
 
+
 @main_bp.route('/dashboard')
 def dashboard():
     if not current_user.is_authenticated:
         return redirect(url_for('auth.login'))
-    
-    if current_user.role == 'admin':
-        return redirect(url_for('admin.dashboard'))
-    elif current_user.role == 'doctor':
-        return redirect(url_for('doctor.dashboard'))
-    elif current_user.role == 'patient':
-        return redirect(url_for('patient.dashboard'))
-    
-    return redirect(url_for('main.home')) 
+    target = {'admin': 'admin.dashboard', 'doctor': 'doctor.dashboard',
+              'patient': 'patient.dashboard', 'lab': 'lab.dashboard'}.get(current_user.role)
+    return redirect(url_for(target or 'main.home'))

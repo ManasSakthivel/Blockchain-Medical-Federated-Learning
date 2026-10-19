@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+
+{% block title %}Lab Profile{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row">
+        <!-- Sidebar -->
+        <div class="col-md-3 col-lg-2 d-md-block sidebar"
+             style="background: #e3eafc; border-radius: 18px; box-shadow: 0 2px 12px rgba(102,126,234,0.10); min-height: 350px; max-height: 420px;">
+            <nav class="nav flex-column py-4">
+                <a class="nav-link mb-2" href="{{ url_for('lab.dashboard') }}">
+                    <i class="fas fa-tachometer-alt"></i> Dashboard
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('lab.requests') }}">
+                    <i class="fas fa-clipboard-list"></i> Patient Requests
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('lab.upload_scan') }}">
+                    <i class="fas fa-upload"></i> Upload Scan
+                </a>
+                <a class="nav-link mb-2" href="{{ url_for('lab.reports') }}">
+                    <i class="fas fa-file-medical"></i> Reports
+                </a>
+                <a class="nav-link mb-2 active" href="{{ url_for('lab.profile') }}">
+                    <i class="fas fa-building"></i> Profile
+                </a>
+            </nav>
+        </div>
+
+        <!-- Main content -->
+        <div class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2><i class="fas fa-building me-2"></i>Lab Profile</h2>
+                <a href="{{ url_for('lab.dashboard') }}" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left me-1"></i>Back to Dashboard
+                </a>
+            </div>
+
+            <div class="row">
+                <!-- Edit form -->
+                <div class="col-md-8">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="fas fa-edit me-2"></i>Lab Information
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <form method="POST">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+                                <div class="mb-3">
+                                    <label for="lab_name" class="form-label">
+                                        Lab Name <span class="text-danger">*</span>
+                                    </label>
+                                    <input type="text" class="form-control" id="lab_name" name="lab_name"
+                                           value="{{ lab.lab_name }}" maxlength="100" required
+                                           placeholder="Enter lab name">
+                                    <div class="form-text">Required. Maximum 100 characters.</div>
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="specialization" class="form-label">Specialization</label>
+                                    <input type="text" class="form-control" id="specialization" name="specialization"
+                                           value="{{ lab.specialization }}" maxlength="100"
+                                           placeholder="e.g. Radiology, Pathology">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="phone" class="form-label">Phone</label>
+                                    <input type="text" class="form-control" id="phone" name="phone"
+                                           value="{{ lab.phone }}" maxlength="15"
+                                           placeholder="Contact number">
+                                </div>
+
+                                <div class="mb-3">
+                                    <label for="address" class="form-label">Address</label>
+                                    <textarea class="form-control" id="address" name="address"
+                                              rows="3" placeholder="Lab address">{{ lab.address }}</textarea>
+                                </div>
+
+                                <div class="d-flex gap-2">
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="fas fa-save me-1"></i>Save Changes
+                                    </button>
+                                    <a href="{{ url_for('lab.dashboard') }}" class="btn btn-outline-secondary">
+                                        Cancel
+                                    </a>
+                                    <button type="button" class="btn btn-outline-warning"
+                                            data-bs-toggle="modal" data-bs-target="#changePasswordModal">
+                                        <i class="fas fa-key me-1"></i>Change Password
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Read-only summary card -->
+                <div class="col-md-4">
+                    <div class="card shadow">
+                        <div class="card-header">
+                            <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Account Details</h5>
+                        </div>
+                        <div class="card-body">
+                            <dl class="row mb-0">
+                                <dt class="col-sm-5 text-muted">License #</dt>
+                                <dd class="col-sm-7">{{ lab.license_number }}</dd>
+
+                                <dt class="col-sm-5 text-muted">Email</dt>
+                                <dd class="col-sm-7">{{ lab.user.email }}</dd>
+
+                                <dt class="col-sm-5 text-muted">Status</dt>
+                                <dd class="col-sm-7">
+                                    {% if lab.is_active %}
+                                        <span class="badge bg-success">Active</span>
+                                    {% else %}
+                                        <span class="badge bg-danger">Inactive</span>
+                                    {% endif %}
+                                </dd>
+
+                                <dt class="col-sm-5 text-muted">Joined</dt>
+                                <dd class="col-sm-7">
+                                    {{ lab.created_at.strftime('%Y-%m-%d') if lab.created_at else '—' }}
+                                </dd>
+                            </dl>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Change Password Modal -->
+<div class="modal fade" id="changePasswordModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-key me-2"></i>Change Password</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="pwAlert" class="alert d-none" role="alert"></div>
+                <div class="mb-3">
+                    <label for="cpCurrentPw" class="form-label">Current Password</label>
+                    <input type="password" class="form-control" id="cpCurrentPw"
+                           autocomplete="current-password">
+                </div>
+                <div class="mb-3">
+                    <label for="cpNewPw" class="form-label">New Password</label>
+                    <input type="password" class="form-control" id="cpNewPw"
+                           autocomplete="new-password" minlength="10">
+                    <div class="form-text">Minimum 10 characters.</div>
+                </div>
+                <div class="mb-3">
+                    <label for="cpConfirmPw" class="form-label">Confirm New Password</label>
+                    <input type="password" class="form-control" id="cpConfirmPw"
+                           autocomplete="new-password">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" id="cpSubmit">
+                    <i class="fas fa-save me-1"></i>Change Password
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('cpSubmit').addEventListener('click', function () {
+    const currentPw  = document.getElementById('cpCurrentPw').value;
+    const newPw      = document.getElementById('cpNewPw').value;
+    const confirmPw  = document.getElementById('cpConfirmPw').value;
+    const alertEl    = document.getElementById('pwAlert');
+
+    function showAlert(msg, type) {
+        alertEl.textContent = msg;
+        alertEl.className = 'alert alert-' + type;
+    }
+
+    if (!currentPw || !newPw || !confirmPw) {
+        showAlert('All fields are required.', 'danger');
+        return;
+    }
+    if (newPw !== confirmPw) {
+        showAlert('New passwords do not match.', 'danger');
+        return;
+    }
+
+    // main.js patches window.fetch to add X-CSRFToken automatically
+    fetch('/lab/profile/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            current_password: currentPw,
+            new_password: newPw,
+            confirm_password: confirmPw
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            document.getElementById('cpCurrentPw').value = '';
+            document.getElementById('cpNewPw').value = '';
+            document.getElementById('cpConfirmPw').value = '';
+        } else {
+            showAlert(data.message || 'An error occurred.', 'danger');
+        }
+    })
+    .catch(() => showAlert('An error occurred. Please try again.', 'danger'));
+});
+</script>
+{% endblock %}
