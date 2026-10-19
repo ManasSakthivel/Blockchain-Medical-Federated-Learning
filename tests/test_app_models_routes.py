@@ -1,184 +1,182 @@
 """
-Unit tests for the Flask application (models, routes) in offline mode.
-No Ganache, no IPFS, no database server required.
+Flask application tests (models, auth, consent) in offline mode.
+No Ganache, no IPFS, no database server required: the `app` / `client` /
+`make` fixtures live in conftest.py (in-memory SQLite, ephemeral keys).
 """
-import sys, os
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+import secrets
 
-import pytest
-from app import create_app, db
-from app.models import User
-
-
-@pytest.fixture()
-def app():
-    """Create an in-memory Flask app for testing."""
-    _app = create_app()
-    _app.config.update({
-        "TESTING": True,
-        "SQLALCHEMY_DATABASE_URI": "sqlite:///:memory:",
-        "WTF_CSRF_ENABLED": False,
-        "SECRET_KEY": "test-secret",
-        "LOGIN_DISABLED": False,
-    })
-    with _app.app_context():
-        db.create_all()
-        yield _app
-        db.session.remove()
-        db.drop_all()
+from app import db
+from app.models import Consent, Doctor, User
+from conftest import PASSWORD
 
 
-@pytest.fixture()
-def client(app):
-    return app.test_client()
+def _patient_form(**over):
+    data = {
+        "username": "carol", "email": "carol@example.com", "password": PASSWORD,
+        "role": "patient", "first_name": "Carol", "last_name": "Smith",
+        "date_of_birth": "1990-01-01", "gender": "female", "phone": "0000000000",
+        "address": "123 Main St", "emergency_contact": "0000000001",
+    }
+    data.update(over)
+    return data
 
-
-# ---------------------------------------------------------------------------
-# Model tests
-# ---------------------------------------------------------------------------
 
 class TestUserModel:
     def test_password_hashing(self, app):
-        """Password should be hashed and verify correctly."""
-        with app.app_context():
-            u = User(username="alice", email="alice@example.com", role="patient")
-            u.set_password("secret123")
-            assert u.check_password("secret123"), "Correct password must verify"
-            assert not u.check_password("wrong"), "Wrong password must not verify"
+        u = User(username="alice", email="alice@example.com", role="patient")
+        u.set_password("secret-123456")
+        assert u.check_password("secret-123456")
+        assert not u.check_password("wrong")
 
     def test_password_not_stored_plaintext(self, app):
-        """The raw password must not appear in password_hash."""
-        with app.app_context():
-            u = User(username="bob", email="bob@example.com", role="doctor")
-            u.set_password("mypassword")
-            assert "mypassword" not in u.password_hash
+        u = User(username="bob", email="bob@example.com", role="doctor")
+        u.set_password("mypassword-123")
+        assert "mypassword-123" not in u.password_hash
+
+    def test_password_hash_column_fits_modern_hashes(self, app):
+        """A-10: scrypt hashes are ~162 chars; the column used to be 120."""
+        assert User.__table__.c.password_hash.type.length >= 255
+
+    def test_sentinel_hash_never_verifies(self, app):
+        u = User(username="x", email="x@example.com", role="patient", password_hash="[ERASED]")
+        assert not u.check_password("[ERASED]")
+        assert not u.check_password("")
 
     def test_did_generated_on_register(self, app, client):
-        """A freshly registered patient user must have a DID in did:ethr: format."""
-        with app.app_context():
-            resp = client.post("/auth/register", data={
-                "username": "carol",
-                "email": "carol@example.com",
-                "password": "Test1234!",
-                "role": "patient",
-                "first_name": "Carol",
-                "last_name": "Smith",
-                "date_of_birth": "1990-01-01",
-                "gender": "female",
-                "phone": "0000000000",
-                "address": "123 Main St",
-                "emergency_contact": "0000000001",
-            }, follow_redirects=True)
-            assert resp.status_code == 200
-            user = User.query.filter_by(email="carol@example.com").first()
-            assert user is not None, "User must be created in DB"
-            assert user.did is not None, "DID must be set at registration"
-            assert user.did.startswith("did:ethr:0x"), \
-                f"DID must start with did:ethr:0x, got: {user.did}"
+        resp = client.post("/auth/register", data=_patient_form(), follow_redirects=True)
+        assert resp.status_code == 200
+        user = User.query.filter_by(email="carol@example.com").first()
+        assert user is not None
+        assert user.did.startswith("did:ethr:0x")
 
     def test_did_uniqueness(self, app):
-        """Two users must not share the same DID."""
-        import secrets
-        with app.app_context():
-            u1 = User(username="u1", email="u1@example.com", role="patient",
-                      did="did:ethr:0x" + secrets.token_hex(20))
-            u1.set_password("pass1")
-            u2 = User(username="u2", email="u2@example.com", role="patient",
-                      did="did:ethr:0x" + secrets.token_hex(20))
-            u2.set_password("pass2")
-            db.session.add_all([u1, u2])
-            db.session.commit()
-            assert u1.did != u2.did, "DIDs must be unique"
+        u1 = User(username="u1", email="u1@example.com", role="patient",
+                  did="did:ethr:0x" + secrets.token_hex(20))
+        u2 = User(username="u2", email="u2@example.com", role="patient",
+                  did="did:ethr:0x" + secrets.token_hex(20))
+        u1.set_password("pass-123456")
+        u2.set_password("pass-123456")
+        db.session.add_all([u1, u2])
+        db.session.commit()
+        assert u1.did != u2.did
 
-
-# ---------------------------------------------------------------------------
-# Auth route tests
-# ---------------------------------------------------------------------------
 
 class TestAuthRoutes:
-    def test_login_page_loads(self, client):
-        resp = client.get("/auth/login")
-        assert resp.status_code == 200
-
-    def test_register_page_loads(self, client):
-        resp = client.get("/auth/register")
-        assert resp.status_code == 200
+    def test_pages_load(self, client):
+        assert client.get("/auth/login").status_code == 200
+        assert client.get("/auth/register").status_code == 200
+        assert client.get("/").status_code == 200
 
     def test_invalid_login_rejected(self, client):
-        resp = client.post("/auth/login", data={
-            "email": "nobody@example.com",
-            "password": "wrong",
-        }, follow_redirects=True)
+        resp = client.post("/auth/login", data={"email": "nobody@example.com", "password": "wrong"},
+                           follow_redirects=True)
         assert resp.status_code == 200
-        assert b"Invalid" in resp.data or b"error" in resp.data.lower()
+        assert b"Invalid email or password" in resp.data
 
-    def test_duplicate_email_rejected(self, client, app):
-        """Registering with an existing email must fail gracefully."""
-        with app.app_context():
-            u = User(username="existing", email="dup@example.com", role="patient",
-                     did="did:ethr:0xAABBCCDDEEFF00112233445566778899AABBCCDD")
-            u.set_password("pass")
-            db.session.add(u)
-            db.session.commit()
+    def test_duplicate_email_rejected(self, client, make):
+        make.user("patient", "existing")
+        resp = client.post("/auth/register",
+                           data=_patient_form(username="newuser", email="existing@example.com"),
+                           follow_redirects=True)
+        # F-04: unified message — no longer leaks whether email or username clashed
+        assert b"registration failed" in resp.data.lower()
+        assert User.query.filter_by(username="newuser").first() is None
 
-        resp = client.post("/auth/register", data={
-            "username": "newuser",
-            "email": "dup@example.com",
-            "password": "Test1234!",
-            "role": "patient",
-            "first_name": "X", "last_name": "Y",
-            "date_of_birth": "2000-01-01",
-            "gender": "other", "phone": "0", "address": ".", "emergency_contact": "0",
-        }, follow_redirects=True)
-        assert resp.status_code == 200
-        # Should flash an error message
-        assert b"already" in resp.data.lower() or b"error" in resp.data.lower()
+    def test_short_password_rejected(self, client):
+        resp = client.post("/auth/register", data=_patient_form(password="short"),
+                           follow_redirects=True)
+        assert b"at least 10 characters" in resp.data
+        assert User.query.count() == 0
 
+    def test_registration_is_atomic_on_bad_profile_input(self, client):
+        """A-07: bad profile data must not leave an orphan User row."""
+        client.post("/auth/register", data=_patient_form(date_of_birth="not-a-date"))
+        assert User.query.count() == 0
+        client.post("/auth/register", data=_patient_form(
+            role="doctor", specialization="gp", license_number="L1", experience_years="abc"))
+        assert User.query.count() == 0
 
-# ---------------------------------------------------------------------------
-# GDPR consent route (offline — blockchain best-effort, will gracefully fail)
-# ---------------------------------------------------------------------------
+    def test_doctor_registration_creates_profile(self, client):
+        client.post("/auth/register", data=_patient_form(
+            role="doctor", username="drx", email="drx@example.com",
+            specialization="gp", license_number="L-1", experience_years="4"))
+        user = User.query.filter_by(username="drx").one()
+        assert Doctor.query.filter_by(user_id=user.id).count() == 1
+
+    def test_login_success_and_next_open_redirect_blocked(self, client, make):
+        u = make.user("patient", "dave")
+        resp = client.post("/auth/login?next=//evil.example/x",
+                           data={"email": u.email, "password": PASSWORD})
+        assert resp.status_code == 302
+        assert "evil.example" not in resp.headers["Location"]
+
 
 class TestConsentRoutes:
-    def _login_as_patient(self, client, app):
-        """Helper: create a patient user and log in."""
-        with app.app_context():
-            u = User(username="patient1", email="p1@example.com", role="patient",
-                     did="did:ethr:0x" + "ab" * 20)
-            u.set_password("pass")
-            db.session.add(u)
-            db.session.commit()
-        client.post("/auth/login", data={"email": "p1@example.com", "password": "pass"})
+    ADDR = "0xABCDEF1234567890ABCDEF1234567890ABCDEF12"
 
-    def test_consent_grant_requires_login(self, client):
-        resp = client.post("/patient/consent/grant",
-                           json={"recipient": "0x1234", "data_type": "lab", "purpose": "x"},
-                           follow_redirects=False)
-        # Unauthenticated → redirect to login
-        assert resp.status_code in (302, 401)
+    def _patient_client(self, make, login_as, name="p1"):
+        u, p = make.patient(name)
+        return login_as(u), p
 
-    def test_consent_revoke_requires_login(self, client):
-        resp = client.post("/patient/consent/revoke",
-                           json={"consent_id": 1},
-                           follow_redirects=False)
-        assert resp.status_code in (302, 401)
+    def test_requires_login(self, client):
+        assert client.post("/patient/consent/grant", json={}).status_code in (302, 401)
+        assert client.post("/patient/consent/revoke", json={"consent_id": 1}).status_code in (302, 401)
 
-    def test_consent_grant_missing_fields(self, client, app):
-        """Missing fields must return 400."""
-        self._login_as_patient(client, app)
-        resp = client.post("/patient/consent/grant",
-                           json={"recipient": "0x1234"})
+    def test_missing_fields(self, make, login_as):
+        c, _ = self._patient_client(make, login_as)
+        assert c.post("/patient/consent/grant", json={"recipient": self.ADDR}).status_code == 400
+
+    def test_bad_address_and_data_type_rejected(self, make, login_as):
+        c, _ = self._patient_client(make, login_as)
+        for body in ({"recipient": "0x1234", "data_type": "file", "purpose": "x"},
+                     {"recipient": self.ADDR, "data_type": "everything", "purpose": "x"}):
+            assert c.post("/patient/consent/grant", json=body).status_code == 400
+
+    def test_grant_is_db_authoritative_and_chain_status_is_honest(self, make, login_as):
+        c, p = self._patient_client(make, login_as)
+        resp = c.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "lab_report", "purpose": "treatment"})
+        body = resp.get_json()
+        assert resp.status_code == 200 and body["status"] == "ok"
+        assert body["consent_status"] == "active"
+        assert body["on_chain"] is False                # no chain configured in tests
+        assert body["chain_status"] == "unavailable"    # never claimed as anchored
+        assert Consent.query.filter_by(patient_id=p.id, status="active").count() == 1
+
+    def test_cannot_revoke_another_patients_consent(self, make, login_as):
+        c1, _ = self._patient_client(make, login_as, "p1")
+        cid = c1.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "file", "purpose": "x"}).get_json()["consent_id"]
+        c2, _ = self._patient_client(make, login_as, "p2")
+        assert c2.post("/patient/consent/revoke", json={"consent_id": cid}).status_code == 404
+        assert db.session.get(Consent, cid).status == "active"
+
+    def test_revoke_own_consent(self, make, login_as):
+        c, _ = self._patient_client(make, login_as)
+        cid = c.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "file", "purpose": "x"}).get_json()["consent_id"]
+        body = c.post("/patient/consent/revoke", json={"consent_id": cid}).get_json()
+        assert body["status"] == "ok" and body["consent_status"] == "revoked"
+        assert db.session.get(Consent, cid).status == "revoked"
+
+    def test_purpose_at_exactly_200_chars_accepted(self, make, login_as):
+        c, p = self._patient_client(make, login_as)
+        purpose = "a" * 200
+        resp = c.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "lab_report", "purpose": purpose})
+        assert resp.status_code == 200
+        body = resp.get_json()
+        assert body["status"] == "ok"
+
+    def test_purpose_over_200_chars_rejected(self, make, login_as):
+        c, _ = self._patient_client(make, login_as)
+        purpose = "a" * 201
+        resp = c.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "lab_report", "purpose": purpose})
         assert resp.status_code == 400
 
-    def test_consent_grant_returns_json(self, client, app):
-        """A valid consent grant request must return JSON with status ok."""
-        self._login_as_patient(client, app)
-        resp = client.post("/patient/consent/grant", json={
-            "recipient": "0xABCDEF1234567890ABCDEF1234567890ABCDEF12",
-            "data_type": "lab_report",
-            "purpose": "treatment",
-        })
-        assert resp.content_type.startswith("application/json")
-        payload = resp.get_json()
-        assert payload["status"] == "ok"
-        assert "purpose_hash" in payload
+    def test_purpose_empty_string_rejected(self, make, login_as):
+        c, _ = self._patient_client(make, login_as)
+        resp = c.post("/patient/consent/grant", json={
+            "recipient": self.ADDR, "data_type": "lab_report", "purpose": ""})
+        assert resp.status_code == 400

@@ -2,15 +2,19 @@
 Unit tests for differential-privacy mechanics inside federated_sim_engine.
 
 All tests are self-contained (no external services required).
+Updated for the corrected DP implementation:
+- Epsilon uses replace-one sensitivity factor=2 (honest, larger values)
+- GaussianMechanism uses numpy.Generator (seeded, NOT a CSPRNG)
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import math
 import numpy as np
-import pytest
 
-from app.federated_sim_engine import GaussianMechanism, AdditiveSecretSharing, FederatedNode
+from app.federated_sim_engine import (
+    GaussianMechanism, AdditiveSecretSharing, FederatedNode, _renyi_epsilon
+)
 
 
 # ---------------------------------------------------------------------------
@@ -30,8 +34,10 @@ class TestGaussianMechanism:
         rng = np.random.default_rng(7)
         base = rng.standard_normal(500)
 
-        gm_low  = GaussianMechanism(noise_multiplier=0.1, max_grad_norm=10.0, delta=1e-5)
-        gm_high = GaussianMechanism(noise_multiplier=3.0, max_grad_norm=10.0, delta=1e-5)
+        gm_low  = GaussianMechanism(noise_multiplier=0.1, max_grad_norm=10.0, delta=1e-5,
+                                     rng=np.random.default_rng(1))
+        gm_high = GaussianMechanism(noise_multiplier=3.0, max_grad_norm=10.0, delta=1e-5,
+                                     rng=np.random.default_rng(2))
 
         noise_low  = np.mean(np.abs(gm_low.clip_and_noise(base.copy())  - base))
         noise_high = np.mean(np.abs(gm_high.clip_and_noise(base.copy()) - base))
@@ -68,6 +74,27 @@ class TestGaussianMechanism:
         result = gm.clip_and_noise(small.copy())
         # With zero noise, should be equal (no clipping)
         np.testing.assert_allclose(result, small, rtol=1e-6)
+
+    def test_epsilon_factor2_larger_than_factor1(self):
+        """
+        Replace-one sensitivity (factor=2) must yield a larger epsilon than
+        add/remove (factor=1) for the same noise_multiplier and rounds.
+        This verifies the accountant uses the correct sensitivity.
+        """
+        eps_factor1 = _renyi_epsilon(1.1, steps=10, delta=1e-5, sensitivity_factor=1.0)
+        eps_factor2 = _renyi_epsilon(1.1, steps=10, delta=1e-5, sensitivity_factor=2.0)
+        assert eps_factor2 > eps_factor1, \
+            "Replace-one sensitivity must give larger epsilon than add/remove"
+
+    def test_epsilon_zero_noise_is_inf(self):
+        """noise_multiplier=0 must return inf (no privacy)."""
+        gm = GaussianMechanism(noise_multiplier=0.0, max_grad_norm=1.0, delta=1e-5)
+        assert math.isinf(gm.compute_epsilon(steps=10))
+
+    def test_epsilon_zero_steps_is_zero(self):
+        """0 rounds must consume 0 privacy budget."""
+        gm = GaussianMechanism(noise_multiplier=1.0, max_grad_norm=1.0, delta=1e-5)
+        assert gm.compute_epsilon(steps=0) == 0.0
 
 
 # ---------------------------------------------------------------------------

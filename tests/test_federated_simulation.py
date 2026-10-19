@@ -1,17 +1,20 @@
 """
 Unit tests for the federated simulation end-to-end pipeline.
+
+Updated to test the fixed engine:
+- Genuine iterative training (global model feeds back each round)
+- Global model evaluation on held-out test set
+- Byzantine detection actually detects attacker
+- seed=0 is valid (not silently coerced to 42)
 """
 import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import numpy as np
-import pytest
 
 from app.federated_sim_engine import (
     FederatedSimulation,
-    FederatedNode,
     AdditiveSecretSharing,
-    GaussianMechanism,
 )
 
 
@@ -93,8 +96,8 @@ class TestFederatedSimulation:
 
     def test_byzantine_node_flagged(self):
         """
-        When a tampered (Byzantine) node is injected, the simulation must
-        eventually flag at least one anomalous node.
+        When a tampered (Byzantine) node is injected, it must be flagged
+        in the round it is active (detection via update-norm outlier scoring).
         """
         sim = FederatedSimulation(n_nodes=4, n_rounds=5, noise_multiplier=0.5)
         # Tamper node 0 starting from round 0
@@ -104,9 +107,16 @@ class TestFederatedSimulation:
         for rlog in logs:
             all_flagged.update(rlog.get("flagged_nodes", []))
         # The tampered node should be flagged in at least one round
-        # (reputation drops below threshold over time)
         node0 = sim.nodes[0]
         assert node0.tampered, "Node 0 should be marked tampered"
-        # Reputation of tampered node should have degraded
-        assert node0.reputation < 1.0, \
-            "Tampered node reputation should have decreased"
+        assert "Hospital-1" in all_flagged, \
+            f"Byzantine node Hospital-1 must be detected; flagged={all_flagged}"
+
+    def test_global_accuracy_in_round_log(self):
+        """Each round log must contain global_accuracy evaluated on held-out set."""
+        sim = FederatedSimulation(n_nodes=3, n_rounds=3)
+        logs = sim.run_simulation()
+        for rlog in logs:
+            assert "global_accuracy" in rlog, "Round log must contain global_accuracy"
+            ga = rlog["global_accuracy"]
+            assert 0.0 <= ga <= 1.0, f"global_accuracy out of range: {ga}"
