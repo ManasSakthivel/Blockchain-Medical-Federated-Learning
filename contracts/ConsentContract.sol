@@ -3,155 +3,104 @@ pragma solidity ^0.8.20;
 
 /**
  * @title ConsentContract
- * @notice Patient-centric consent management using Decentralised Identifiers (DIDs).
+ * @notice Append-only log of consent grants/revocations, written by ONE trusted
+ *         operator (the application server).
  *
- * Each patient has a DID (did:ethr:<address>) stored off-chain; their Ethereum
- * address is the on-chain identity anchor. Patients grant and revoke data-sharing
- * consent per (recipient, dataType) pair. All consent actions are immutably logged.
- *
- * GDPR Compliance:
- *  - Article 7: consent can be withdrawn at any time via revokeConsent()
- *  - Article 17: data erasure requests are emitted as DataErasureRequested events
- *  - Article 20: data portability request events are emitted
+ * Trust model (read this before relying on it):
+ *  - Only `operator` can write. A transaction therefore proves "the operator
+ *    recorded this", NOT "the patient signed this". Patients hold no keys here.
+ *  - The application database is authoritative for access decisions; this
+ *    contract is a tamper-evident audit trail of what the operator recorded.
+ *  - `patient` is a pseudonymous address derived from a throw-away key (the
+ *    DID); no name, e-mail or health data is stored. Everything on a public
+ *    chain is readable by anyone and cannot be deleted.
+ *  - This contract does not implement or evidence GDPR/HIPAA compliance.
  */
 contract ConsentContract {
-
-    // ── Structs ────────────────────────────────────────────────────────────
     struct ConsentRecord {
         address patient;
-        address recipient;    // doctor / lab / researcher
-        string  dataType;     // e.g. "lab_report", "prescription", "all"
+        address recipient;
+        string dataType;
+        bytes32 purposeHash; // SHA-256 of the purpose text (text itself is off-chain)
         uint256 grantedAt;
-        uint256 revokedAt;    // 0 = still active
-        bool    isActive;
-        string  purposeHash;  // IPFS CID of purpose statement (GDPR Art. 13)
+        uint256 revokedAt; // 0 = still active
+        bool isActive;
     }
 
-    // ── State ──────────────────────────────────────────────────────────────
+    address public operator;
     uint256 public consentCounter;
-    mapping(uint256 => ConsentRecord)          public consents;
-    mapping(address => uint256[])              public patientConsents;   // patient → consent IDs
-    mapping(address => mapping(address => mapping(string => uint256))) public activeConsentId;
-    // patient → recipient → dataType → consentId (0 = none)
+    mapping(uint256 => ConsentRecord) public consents;
+    mapping(address => uint256[]) private patientConsents;
+    // patient => recipient => keccak256(dataType) => consentId (0 = none)
+    mapping(address => mapping(address => mapping(bytes32 => uint256))) private activeConsentId;
 
-    // ── Events ─────────────────────────────────────────────────────────────
     event ConsentGranted(
         uint256 indexed consentId,
         address indexed patient,
         address indexed recipient,
-        string  dataType,
-        uint256 timestamp,
-        string  purposeHash
+        string dataType,
+        bytes32 purposeHash
     );
-    event ConsentRevoked(
-        uint256 indexed consentId,
-        address indexed patient,
-        address indexed recipient,
-        string  dataType,
-        uint256 timestamp
-    );
-    event DataErasureRequested(
-        address indexed patient,
-        uint256 timestamp,
-        string  ipfsCidToErase
-    );
-    event DataPortabilityRequested(
-        address indexed patient,
-        uint256 timestamp
-    );
+    event ConsentRevoked(uint256 indexed consentId, address indexed patient, address indexed recipient);
+    event OperatorTransferred(address indexed previousOperator, address indexed newOperator);
 
-    // ── Consent management ─────────────────────────────────────────────────
-
-    /**
-     * @notice Grant consent for a recipient to access a specific data type.
-     * @param recipient   Address of the doctor/lab/researcher
-     * @param dataType    String identifier of the data category
-     * @param purposeHash IPFS CID of the purpose statement document
-     */
-    function grantConsent(
-        address recipient,
-        string calldata dataType,
-        string calldata purposeHash
-    ) external {
-        require(recipient != address(0), "Consent: zero recipient");
-        require(bytes(dataType).length > 0, "Consent: empty dataType");
-
-        // Revoke any existing consent for the same (patient, recipient, dataType)
-        uint256 existingId = activeConsentId[msg.sender][recipient][dataType];
-        if (existingId != 0 && consents[existingId].isActive) {
-            _revoke(existingId);
-        }
-
-        consentCounter++;
-        consents[consentCounter] = ConsentRecord({
-            patient:     msg.sender,
-            recipient:   recipient,
-            dataType:    dataType,
-            grantedAt:   block.timestamp,
-            revokedAt:   0,
-            isActive:    true,
-            purposeHash: purposeHash
-        });
-        patientConsents[msg.sender].push(consentCounter);
-        activeConsentId[msg.sender][recipient][dataType] = consentCounter;
-
-        emit ConsentGranted(consentCounter, msg.sender, recipient, dataType, block.timestamp, purposeHash);
+    modifier onlyOperator() {
+        require(msg.sender == operator, "Consent: caller is not operator");
+        _;
     }
 
-    /**
-     * @notice Revoke a previously granted consent.
-     * Only the patient who granted it may revoke it.
-     */
-    function revokeConsent(uint256 consentId) external {
-        ConsentRecord storage c = consents[consentId];
-        require(c.patient == msg.sender, "Consent: not the patient");
-        require(c.isActive, "Consent: already revoked");
+    constructor() {
+        operator = msg.sender;
+        emit OperatorTransferred(address(0), msg.sender);
+    }
+
+    function transferOperator(address newOperator) external onlyOperator {
+        require(newOperator != address(0), "Consent: zero operator");
+        emit OperatorTransferred(operator, newOperator);
+        operator = newOperator;
+    }
+
+    function grantConsent(
+        address patient,
+        address recipient,
+        string calldata dataType,
+        bytes32 purposeHash
+    ) external onlyOperator returns (uint256 consentId) {
+        require(patient != address(0) && recipient != address(0), "Consent: zero address");
+        require(bytes(dataType).length > 0 && bytes(dataType).length <= 64, "Consent: bad dataType");
+
+        bytes32 typeKey = keccak256(bytes(dataType));
+        uint256 existing = activeConsentId[patient][recipient][typeKey];
+        if (existing != 0) {
+            _revoke(existing);
+        }
+
+        consentId = ++consentCounter;
+        consents[consentId] = ConsentRecord({
+            patient: patient,
+            recipient: recipient,
+            dataType: dataType,
+            purposeHash: purposeHash,
+            grantedAt: block.timestamp,
+            revokedAt: 0,
+            isActive: true
+        });
+        patientConsents[patient].push(consentId);
+        activeConsentId[patient][recipient][typeKey] = consentId;
+        emit ConsentGranted(consentId, patient, recipient, dataType, purposeHash);
+    }
+
+    function revokeConsent(uint256 consentId) external onlyOperator {
+        require(consents[consentId].isActive, "Consent: not active");
         _revoke(consentId);
     }
 
-    /**
-     * @notice Revoke all active consents for a patient (e.g. before account erasure).
-     * Only callable by the patient themselves.
-     */
-    function revokeAllConsents() external {
-        uint256[] storage ids = patientConsents[msg.sender];
-        for (uint256 i = 0; i < ids.length; i++) {
-            if (consents[ids[i]].isActive) {
-                _revoke(ids[i]);
-            }
-        }
-    }
-
-    // ── GDPR data subject rights ───────────────────────────────────────────
-
-    /**
-     * @notice Emit a data erasure request event (GDPR Art. 17 — Right to Erasure).
-     * The off-chain system listens for this event and deletes the referenced data.
-     * @param ipfsCidToErase CID of the IPFS data artifact to delete
-     */
-    function requestDataErasure(string calldata ipfsCidToErase) external {
-        emit DataErasureRequested(msg.sender, block.timestamp, ipfsCidToErase);
-    }
-
-    /**
-     * @notice Emit a data portability request event (GDPR Art. 20).
-     */
-    function requestDataPortability() external {
-        emit DataPortabilityRequested(msg.sender, block.timestamp);
-    }
-
-    // ── View functions ─────────────────────────────────────────────────────
-
-    /**
-     * @notice Check whether a recipient currently has active consent
-     * to access a specific data type for a given patient.
-     */
-    function hasConsent(
-        address patient,
-        address recipient,
-        string calldata dataType
-    ) external view returns (bool) {
-        uint256 id = activeConsentId[patient][recipient][dataType];
+    function hasConsent(address patient, address recipient, string calldata dataType)
+        external
+        view
+        returns (bool)
+    {
+        uint256 id = activeConsentId[patient][recipient][keccak256(bytes(dataType))];
         return id != 0 && consents[id].isActive;
     }
 
@@ -159,26 +108,11 @@ contract ConsentContract {
         return patientConsents[patient];
     }
 
-    function getConsent(uint256 consentId) external view returns (
-        address patient,
-        address recipient,
-        string memory dataType,
-        uint256 grantedAt,
-        uint256 revokedAt,
-        bool    isActive,
-        string memory purposeHash
-    ) {
-        ConsentRecord storage c = consents[consentId];
-        return (c.patient, c.recipient, c.dataType, c.grantedAt, c.revokedAt, c.isActive, c.purposeHash);
-    }
-
-    // ── Internal ───────────────────────────────────────────────────────────
-
     function _revoke(uint256 consentId) internal {
         ConsentRecord storage c = consents[consentId];
-        c.isActive  = false;
+        c.isActive = false;
         c.revokedAt = block.timestamp;
-        activeConsentId[c.patient][c.recipient][c.dataType] = 0;
-        emit ConsentRevoked(consentId, c.patient, c.recipient, c.dataType, block.timestamp);
+        activeConsentId[c.patient][c.recipient][keccak256(bytes(c.dataType))] = 0;
+        emit ConsentRevoked(consentId, c.patient, c.recipient);
     }
 }

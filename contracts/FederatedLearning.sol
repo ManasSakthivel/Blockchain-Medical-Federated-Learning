@@ -8,7 +8,8 @@ import "./Roles.sol";
  * @notice On-chain governance contract for the Blockchain-FL framework.
  *
  * Implements:
- *  - Participant registration with staking (slashing for Byzantine behaviour)
+ *  - Participant registration by an admin (no ETH staking: staked funds could
+ *    never be withdrawn, so staking was removed)
  *  - Per-round model update recording (bytes32 hash of DP-noised weights)
  *  - Reputation-based consensus: reputation updated per round from accuracy
  *  - Tamper detection: flagged updates recorded immutably
@@ -18,7 +19,10 @@ import "./Roles.sol";
  *   rep_new = (7 * accuracy_bps + 3 * rep_old) / 10
  * where accuracy_bps is accuracy * 10000 (basis points, 0-10000).
  *
- * Slashing: nodes whose reputation falls below REPUTATION_THRESHOLD lose stake.
+ * Flagged nodes (decided off-chain by the aggregator) are deactivated and marked
+ * slashed; no funds are involved. Everything is recorded by trusted roles (admin,
+ * aggregator, registered participants): the contract is an audit log, not a
+ * trustless consensus mechanism.
  */
 contract FederatedLearning {
     using Roles for Roles.Role;
@@ -28,9 +32,8 @@ contract FederatedLearning {
     Roles.Role private participantRole;
 
     // ── Constants ──────────────────────────────────────────────────────────
-    uint256 public constant STAKE_AMOUNT         = 0.01 ether;  // required stake per participant
-    uint256 public constant REPUTATION_THRESHOLD = 5500;        // 55.00% in basis points
-    uint256 public constant SLASH_AMOUNT         = 0.001 ether; // deducted on reputation breach
+    uint256 public constant MAX_FLAGGED_PER_ROUND = 64;
+    uint256 public constant MAX_BPS               = 10000;
 
     // ── Structs ────────────────────────────────────────────────────────────
     struct ModelUpdate {
@@ -44,7 +47,7 @@ contract FederatedLearning {
 
     struct Participant {
         address addr;
-        uint256 stake;          // ETH staked
+        uint256 stake;          // always 0 (staking removed); kept for ABI stability
         uint256 reputation;     // 0-10000 basis points
         uint256 roundsContributed;
         bool    isActive;
@@ -85,7 +88,7 @@ contract FederatedLearning {
         uint256 avgAccuracyBps
     );
     event NodeFlagged(address indexed node, uint256 round, string reason);
-    event ParticipantSlashed(address indexed participant, uint256 amount);
+    event ParticipantSlashed(address indexed participant, uint256 amount); // amount is always 0
     event ReputationUpdated(address indexed participant, uint256 oldRep, uint256 newRep);
 
     // ── Modifiers ──────────────────────────────────────────────────────────
@@ -141,30 +144,6 @@ contract FederatedLearning {
         emit ParticipantRegistered(participant, 0);
     }
 
-    // ── Participant staking ────────────────────────────────────────────────
-
-    /**
-     * @notice Join the FL network by staking ETH.
-     */
-    function stake() external payable {
-        require(msg.value >= STAKE_AMOUNT, "FL: insufficient stake");
-        if (!participantRole.has(msg.sender)) {
-            participantRole.add(msg.sender);
-            participants[msg.sender] = Participant({
-                addr:               msg.sender,
-                stake:              msg.value,
-                reputation:         8000,
-                roundsContributed:  0,
-                isActive:           true,
-                isSlashed:          false
-            });
-            participantList.push(msg.sender);
-        } else {
-            participants[msg.sender].stake += msg.value;
-        }
-        emit ParticipantRegistered(msg.sender, msg.value);
-    }
-
     // ── Model update recording ─────────────────────────────────────────────
 
     /**
@@ -178,8 +157,42 @@ contract FederatedLearning {
         uint256 round,
         uint256 accuracyBps
     ) external {
-        // Allow admin/aggregator to record on behalf of nodes (for simulation)
-        address contributor = participantRole.has(msg.sender) ? msg.sender : aggregator;
+        recordModelUpdate(modelHash, round, accuracyBps, address(0));
+    }
+
+    /**
+     * @notice Record a local model update hash with optional on-behalf-of attribution.
+     * @param modelHash    SHA-256 of the DP-noised weight vector
+     * @param round        FL round number
+     * @param accuracyBps  Local model accuracy * 10000 (e.g. 0.82 → 8200)
+     * @param onBehalfOf   Participant address if aggregator is recording on their behalf,
+     *                     or address(0) for self-attribution.
+     */
+    function recordModelUpdate(
+        bytes32 modelHash,
+        uint256 round,
+        uint256 accuracyBps,
+        address onBehalfOf
+    ) public {
+        require(accuracyBps <= MAX_BPS, "FL: accuracy out of range");
+        require(round <= currentRound + 1, "FL: round too far ahead");
+        // Only an active registered participant, or the aggregator recording on
+        // behalf of nodes (simulation), may write. Anyone else is rejected.
+        bool isParticipantCaller = participantRole.has(msg.sender) && participants[msg.sender].isActive;
+        require(isParticipantCaller || msg.sender == aggregator, "FL: caller not authorised");
+
+        address contributor;
+        if (msg.sender == aggregator) {
+            if (onBehalfOf != address(0)) {
+                require(participantRole.has(onBehalfOf), "FL: participant not registered");
+                contributor = onBehalfOf;
+            } else {
+                contributor = aggregator;
+            }
+        } else {
+            require(onBehalfOf == address(0) || onBehalfOf == msg.sender, "FL: caller cannot act on behalf of others");
+            contributor = msg.sender;
+        }
 
         updates.push(ModelUpdate({
             contributor:  contributor,
@@ -212,6 +225,12 @@ contract FederatedLearning {
         uint256 avgAccuracyBps,
         address[] calldata flaggedNodes
     ) external onlyAggregator {
+        require(avgAccuracyBps <= MAX_BPS, "FL: accuracy out of range");
+        require(flaggedNodes.length <= MAX_FLAGGED_PER_ROUND, "FL: too many flagged nodes");
+        require(round >= currentRound, "FL: round cannot go backwards");
+        for (uint256 i = 0; i < flaggedNodes.length; i++) {
+            require(participantRole.has(flaggedNodes[i]), "FL: flagged node not registered");
+        }
         roundSummaries.push(RoundSummary({
             round:         round,
             globalHash:    globalHash,
@@ -221,7 +240,7 @@ contract FederatedLearning {
             flaggedNodes:  flaggedNodes
         }));
 
-        // Slash flagged nodes
+        // Deactivate flagged nodes
         for (uint256 i = 0; i < flaggedNodes.length; i++) {
             _slash(flaggedNodes[i], "reputation_below_threshold");
         }
@@ -254,15 +273,9 @@ contract FederatedLearning {
         Participant storage p = participants[participant];
         if (!p.isActive || p.isSlashed) return;
         emit NodeFlagged(participant, currentRound, reason);
-        if (p.stake >= SLASH_AMOUNT) {
-            p.stake     -= SLASH_AMOUNT;
-            p.isSlashed  = true;
-            emit ParticipantSlashed(participant, SLASH_AMOUNT);
-        } else if (p.stake > 0) {
-            emit ParticipantSlashed(participant, p.stake);
-            p.stake    = 0;
-            p.isSlashed = true;
-        }
+        p.isActive = false;
+        p.isSlashed = true;
+        emit ParticipantSlashed(participant, 0);
     }
 
     // ── View functions ─────────────────────────────────────────────────────

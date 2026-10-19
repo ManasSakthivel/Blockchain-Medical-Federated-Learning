@@ -14,6 +14,7 @@ library Roles {
      * @dev Give an account access to this role.
      */
     function add(Role storage role, address account) internal {
+        require(account != address(0), "Roles: account is the zero address");
         require(!has(role, account), "Roles: account already has role");
         role.bearer[account] = true;
     }
@@ -27,11 +28,13 @@ library Roles {
     }
 
     /**
-     * @dev Check if an account has this role.
+     * @dev Check if an account has this role. The zero address never has a
+     *      role (returns false rather than reverting, so view helpers such as
+     *      `isAuthorized(address(0))` are safe to call).
      * @return bool
      */
     function has(Role storage role, address account) internal view returns (bool) {
-        require(account != address(0), "Roles: account is the zero address");
+        if (account == address(0)) return false;
         return role.bearer[account];
     }
 } 

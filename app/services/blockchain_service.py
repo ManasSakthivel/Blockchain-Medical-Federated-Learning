@@ -1,600 +1,215 @@
+"""Operator-signed blockchain anchoring client (web3 7.x).
+
+Trust model
+-----------
+Exactly one account, the *operator* (``BLOCKCHAIN_OPERATOR_PRIVATE_KEY``), signs
+every transaction. A mined transaction therefore proves "the operator recorded
+this", not "the patient/doctor signed this". The application database stays
+authoritative for access decisions.
+
+Only opaque identifiers and keyed digests are sent (see contracts/*.sol). The
+operator key is read from the environment only: never from a file in the repo,
+never logged, never returned.
+
+Every public method returns a :class:`ChainResult`; none of them raises for
+chain problems, so callers can degrade gracefully and report the real status:
+``anchored`` (receipt status 1), ``unavailable`` (nothing configured / reachable)
+or ``failed`` (attempted, reverted or errored).
+"""
 import json
-import hashlib
+import logging
 import os
-from dotenv import load_dotenv
+from dataclasses import dataclass
+from pathlib import Path
 
-# web3 is imported lazily inside connect_to_ganache() so the module can be
-# imported in environments where web3 is not installed (e.g. CI test runner).
-try:
+log = logging.getLogger(__name__)
+
+CONTRACT_NAMES = ("ConsentContract", "FileVerificationContract", "ErasureLogContract")
+_ENV_ADDR = {
+    "ConsentContract": "CONSENT_CONTRACT_ADDRESS",
+    "FileVerificationContract": "FILE_VERIFICATION_CONTRACT_ADDRESS",
+    "ErasureLogContract": "ERASURE_LOG_CONTRACT_ADDRESS",
+}
+
+
+class BlockchainUnavailable(RuntimeError):
+    """Chain is not configured or not reachable."""
+
+
+@dataclass
+class ChainResult:
+    status: str  # anchored | unavailable | failed
+    tx_hash: str | None = None
+    object_id: int | None = None
+    error: str | None = None
+    match: bool | None = None
+
+    @property
+    def ok(self) -> bool:
+        return self.status == "anchored"
+
+
+def _bytes32(value: str, *, name: str) -> bytes:
+    """Hex string (optionally 0x-prefixed, <= 32 bytes) -> bytes32 (right-padded)."""
+    raw = value[2:] if value.startswith(("0x", "0X")) else value
+    try:
+        data = bytes.fromhex(raw)
+    except ValueError as exc:
+        raise ValueError(f"{name} must be hex") from exc
+    if not 0 < len(data) <= 32:
+        raise ValueError(f"{name} must be 1..32 bytes")
+    return data.ljust(32, b"\x00")
+
+
+def address_from_did(did: str) -> str:
+    """``did:ethr:0x...`` -> checksum address (the throw-away public address)."""
     from web3 import Web3
-    _WEB3_AVAILABLE = True
-except ImportError:
-    _WEB3_AVAILABLE = False
 
-# Load .env automatically so callers don't have to remember
-load_dotenv()
+    addr = (did or "").rsplit(":", 1)[-1]
+    if not Web3.is_address(addr):
+        raise ValueError("DID does not contain a valid address")
+    return Web3.to_checksum_address(addr)
+
 
 class BlockchainService:
-    def __init__(self):
-        self.web3 = None
-        self.contract = None
-        self.account = None
-        self.contract_address = None
-        self.contract_abi = None
-        self.is_connected = False
-        
-        # Ganache configuration
-        self.ganache_url = "http://127.0.0.1:7545"  # Default Ganache URL
-        self.account = None
-        self.contract_abi = None
-        
-    def connect_to_ganache(self):
-        """Connect to Ganache local blockchain"""
-        try:
-            self.web3 = Web3(Web3.HTTPProvider(self.ganache_url))
-            
-            if self.web3.is_connected():
-                print(f"✅ Connected to Ganache at {self.ganache_url}")
-                self.is_connected = True
-                # Dynamically use the first Ganache account
-                accounts = self.web3.eth.accounts
-                if accounts and len(accounts) > 0:
-                    self.account = accounts[0]
-                    print(f"✅ Using account: {self.account}")
-                else:
-                    print("❌ No accounts found in Ganache.")
-                    return False
-                return True
-            else:
-                print(f"❌ Failed to connect to Ganache at {self.ganache_url}")
-                return False
-                
-        except Exception as e:
-            print(f"❌ Error connecting to Ganache: {e}")
-            return False
-    
-    def load_contract(self, contract_address=None, contract_abi_path=None):
-        """Load the FileVerificationContract"""
-        try:
-            if not self.is_connected:
-                if not self.connect_to_ganache():
-                    return False
-            
-            # Use provided address or try to get from deployment
-            if contract_address:
-                self.contract_address = contract_address
-            else:
-                # Try to get from deployment artifacts
-                self.contract_address = self._get_deployed_contract_address()
-            
-            if not self.contract_address:
-                print("❌ No contract address found. Please deploy the contract first.")
-                return False
-            
-            # Load ABI
-            if contract_abi_path:
-                with open(contract_abi_path, 'r') as f:
-                    self.contract_abi = json.load(f)
-            else:
-                self.contract_abi = self._get_contract_abi()
-            
-            if not self.contract_abi:
-                print("❌ No contract ABI found.")
-                return False
-            
-            # Create contract instance
-            self.contract = self.web3.eth.contract(
-                address=self.contract_address,
-                abi=self.contract_abi
-            )
-            
-            print(f"✅ Loaded FileVerificationContract at {self.contract_address}")
-            return True
-            
-        except Exception as e:
-            print(f"❌ Error loading contract: {e}")
-            return False
-    
-    def _get_deployed_contract_address(self):
-        """Get deployed contract address from build artifacts"""
-        try:
-            # Check if build directory exists
-            build_path = os.path.join(os.getcwd(), 'build', 'contracts')
-            if os.path.exists(build_path):
-                contract_json_path = os.path.join(build_path, 'FileVerificationContract.json')
-                if os.path.exists(contract_json_path):
-                    with open(contract_json_path, 'r') as f:
-                        contract_data = json.load(f)
-                        networks = contract_data.get('networks', {})
-                        # Get the latest network deployment (highest network ID)
-                        latest_network = max(networks.keys(), key=int) if networks else None
-                        if latest_network:
-                            return networks[latest_network].get('address')
-            
-            # Fallback: check if address is stored in a config file
-            config_path = os.path.join(os.getcwd(), 'contract_address.txt')
-            if os.path.exists(config_path):
-                with open(config_path, 'r') as f:
-                    return f.read().strip()
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error getting contract address: {e}")
-            return None
-    
-    def _get_contract_abi(self):
-        """Get contract ABI from build artifacts"""
-        try:
-            build_path = os.path.join(os.getcwd(), 'build', 'contracts')
-            contract_json_path = os.path.join(build_path, 'FileVerificationContract.json')
-            
-            if os.path.exists(contract_json_path):
-                with open(contract_json_path, 'r') as f:
-                    contract_data = json.load(f)
-                    return contract_data.get('abi')
-            
-            return None
-            
-        except Exception as e:
-            print(f"Error getting contract ABI: {e}")
-            return None
-    
-    def get_accounts(self):
-        """Get available accounts from Ganache"""
-        if self.is_connected:
-            return self.web3.eth.accounts
-        return []
-    
-    def set_account(self, account_index=0):
-        """Set the account to use for transactions (default: first Ganache account)"""
-        if not self.is_connected:
-            if not self.connect_to_ganache():
-                return None
-        accounts = self.web3.eth.accounts
-        if accounts and len(accounts) > account_index:
-            self.account = accounts[account_index]
-            print(f"✅ Set account to: {self.account}")
-            return self.account
-        else:
-            print("❌ No accounts found in Ganache.")
-            return None
-    
-    def get_balance(self):
-        """Get balance of current account in ETH"""
-        if self.account and self.is_connected:
-            balance_wei = self.web3.eth.get_balance(self.account)
-            balance_eth = self.web3.from_wei(balance_wei, 'ether')
-            return float(balance_eth)
-        return 0
-    
-    def is_admin(self, address):
-        """Check if address is admin using the contract"""
-        if self.contract and self.is_connected:
-            try:
-                return self.contract.functions.isAuthorized(address).call()
-            except Exception as e:
-                print(f"Error checking admin status: {e}")
-                return False
-        return False
-    
-    def add_doctor(self, doctor_address, doctor_hash):
-        """Add doctor to blockchain"""
-        if self.contract and self.account and self.is_connected:
-            try:
-                # Build transaction
-                transaction = self.contract.functions.addDoctor(doctor_address).build_transaction({
-                    'from': self.account,
-                    'gas': 200000,
-                    'gasPrice': self.web3.eth.gas_price,
-                    'nonce': self.web3.eth.get_transaction_count(self.account)
-                })
-                
-                # Sign and send transaction
-                signed_txn = self.web3.eth.account.sign_transaction(transaction, private_key=self._get_private_key())
-                tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                
-                # Wait for transaction receipt
-                tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-                
-                return {
-                    "status": "success",
-                    "hash": tx_receipt.transactionHash.hex()
-                }
-                
-            except Exception as e:
-                print(f"Error adding doctor: {e}")
-                return None
-        return None
-    
-    def _get_private_key(self) -> str | None:
-        """
-        Resolve the private key for self.account.
+    def __init__(self, web3, contracts: dict, operator_private_key: str, *,
+                 receipt_timeout: int = 60):
+        self.w3 = web3
+        self.contracts = contracts
+        self._key = operator_private_key  # never logged / exposed
+        self.operator = web3.eth.account.from_key(operator_private_key).address
+        self.receipt_timeout = receipt_timeout
 
-        Resolution order (most-secure first):
-          1. Environment variable  GANACHE_PRIVATE_KEY_<checksum-address>
-          2. private_keys.json   (dev fallback — keep this file git-ignored)
-        """
-        if not self.account:
-            return None
+    # ------------------------------------------------------------------ setup
+    @classmethod
+    def from_env(cls) -> "BlockchainService":
+        """Build from environment. Raises BlockchainUnavailable when not configured."""
+        from web3 import Web3
 
-        # 1. Try environment variable (preferred / production-safe)
-        env_key = f"GANACHE_PRIVATE_KEY_{self.account}"
-        pk = os.environ.get(env_key)
-        if pk:
-            return pk
+        rpc = os.environ.get("BLOCKCHAIN_RPC_URL")
+        key = os.environ.get("BLOCKCHAIN_OPERATOR_PRIVATE_KEY")
+        if not rpc or not key:
+            raise BlockchainUnavailable("BLOCKCHAIN_RPC_URL / BLOCKCHAIN_OPERATOR_PRIVATE_KEY not set")
+        w3 = Web3(Web3.HTTPProvider(rpc, request_kwargs={"timeout": 10}))
+        if not w3.is_connected():
+            raise BlockchainUnavailable("RPC endpoint is not reachable")
+        artifacts = Path(os.environ.get("CONTRACT_ARTIFACTS_DIR", "build/contracts"))
+        contracts = {}
+        for name in CONTRACT_NAMES:
+            contracts[name] = cls._load_contract(w3, name, artifacts)
+        return cls(w3, contracts, key)
 
-        # 2. Fall back to private_keys.json with a deprecation warning
-        private_keys_path = os.path.join(os.getcwd(), 'private_keys.json')
-        if os.path.exists(private_keys_path):
-            print(
-                f"⚠️  Reading private key from private_keys.json (fallback).\n"
-                f"   Set {env_key} in your .env to avoid this."
-            )
-            try:
-                with open(private_keys_path, 'r') as f:
-                    private_keys = json.load(f)
-                return private_keys.get(self.account)
-            except Exception as e:
-                print(f"❌ Failed to read private_keys.json: {e}")
+    @staticmethod
+    def _load_contract(w3, name: str, artifacts: Path):
+        path = artifacts / f"{name}.json"
+        if not path.exists():
+            raise BlockchainUnavailable(f"missing artifact {path}")
+        art = json.loads(path.read_text())
+        addr = os.environ.get(_ENV_ADDR[name])
+        if not addr:
+            nets = art.get("networks", {})
+            addr = (nets.get(str(w3.eth.chain_id)) or {}).get("address")
+        if not addr:
+            raise BlockchainUnavailable(f"{name} is not deployed on chain {w3.eth.chain_id}")
+        return w3.eth.contract(address=w3.to_checksum_address(addr), abi=art["abi"])
 
-        print(f"❌ No private key found for {self.account}. "
-              f"Set {env_key} in your .env file.")
-        return None
-    
-    def get_all_doctors(self):
-        """Get all registered doctor addresses from EHRContract."""
-        if self.contract and self.is_connected:
-            try:
-                return self.contract.functions.getAllDoctors().call()
-            except Exception as e:
-                print(f"Error getting doctors from blockchain: {e}")
-                return []
-        return []
-
-    def get_doctor(self, doctor_address):
-        """Get doctor information from EHRContract (drHash, specialization, licenseNumber)."""
-        if self.contract and self.is_connected:
-            try:
-                dr_hash, specialization, license_number = \
-                    self.contract.functions.getDoctor(doctor_address).call()
-                return {
-                    "address":       doctor_address,
-                    "dr_hash":       dr_hash,
-                    "specialization": specialization,
-                    "license_number": license_number,
-                }
-            except Exception as e:
-                print(f"Error getting doctor from blockchain: {e}")
-                return None
-        return None
-    
-    def is_doctor(self, address):
-        """Check if address is doctor"""
-        if self.contract and self.is_connected:
-            try:
-                return self.contract.functions.isAuthorized(address).call()
-            except Exception as e:
-                print(f"Error checking doctor status: {e}")
-                return False
-        return False
-    
-    def hash_record(self, record_data):
-        """Create hash of medical record"""
-        record_string = json.dumps(record_data, sort_keys=True)
-        return hashlib.sha256(record_string.encode()).hexdigest()
-    
-    def store_record_on_blockchain(self, patient_address: str, doctor_address: str,
-                                   record_hash: str, ipfs_hash: str) -> dict | None:
-        """
-        Store a medical record hash on the EHRContract via addMedicalRecord().
-        Returns the transaction receipt dict or None on failure.
-        """
-        if not (self.contract and self.account and self.is_connected):
-            return None
+    def status(self) -> dict:
+        """Non-secret health summary."""
         try:
-            tx = self.contract.functions.addMedicalRecord(
-                patient_address,
-                doctor_address,
-                record_hash,
-                ipfs_hash,
-            ).build_transaction({
-                "from":     self.account,
-                "gas":      300_000,
-                "gasPrice": self.web3.eth.gas_price,
-                "nonce":    self.web3.eth.get_transaction_count(self.account),
+            return {"connected": bool(self.w3.is_connected()), "chain_id": self.w3.eth.chain_id,
+                    "operator": self.operator,
+                    "contracts": {n: c.address for n, c in self.contracts.items()}}
+        except Exception as exc:
+            return {"connected": False, "error": type(exc).__name__}
+
+    # --------------------------------------------------------------- plumbing
+    def _send(self, fn, event_name: str | None = None, contract=None) -> ChainResult:
+        try:
+            tx = fn.build_transaction({
+                "from": self.operator,
+                "nonce": self.w3.eth.get_transaction_count(self.operator, "pending"),
+                "chainId": self.w3.eth.chain_id,
+                "gasPrice": self.w3.eth.gas_price,
             })
-            pk = self._get_private_key()
-            if not pk:
-                print("❌ No private key — cannot submit store_record_on_blockchain tx")
-                return None
-            signed  = self.web3.eth.account.sign_transaction(tx, private_key=pk)
-            tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
-            receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            record_id = self.contract.functions.recordCounter().call()
-            print(f"✅ Medical record stored on-chain (id={record_id}  tx={receipt.transactionHash.hex()[:18]}…)")
-            return {
-                "record_id":       record_id,
-                "transaction_hash": receipt.transactionHash.hex(),
-                "status":          "success",
-            }
-        except Exception as e:
-            print(f"Error storing medical record on blockchain: {e}")
-            return None
-    
-    def upload_file_to_blockchain(self, filename, file_hash, ipfs_hash, file_type, file_size, patient_id, metadata):
-        """Upload file information to blockchain using FileVerificationContract"""
-        print(f"🔍 Starting blockchain upload for file: {filename}")
-        print(f"🔍 Contract: {self.contract}")
-        print(f"🔍 Account: {self.account}")
-        print(f"🔍 Connected: {self.is_connected}")
-        if self.contract and self.account and self.is_connected:
-            try:
-                # Convert patient_id to address if it's not already
-                if isinstance(patient_id, int):
-                    # It's a database ID, use current account as placeholder
-                    patient_address = self.account
-                elif isinstance(patient_id, str) and not patient_id.startswith('0x'):
-                    # Assume it's a patient ID, use a default address for now
-                    patient_address = self.account  # Use current account as placeholder
-                else:
-                    patient_address = patient_id
-                
-                # Build transaction
-                transaction = self.contract.functions.uploadFile(
-                    filename,
-                    file_hash,
-                    ipfs_hash,
-                    file_type,
-                    file_size,
-                    patient_address,
-                    metadata
-                ).build_transaction({
-                    'from': self.account,
-                    'gas': 1000000,  # Increased gas limit to 1M
-                    'gasPrice': self.web3.eth.gas_price,
-                    'nonce': self.web3.eth.get_transaction_count(self.account)
-                })
-                
-                # Get private key
-                private_key = self._get_private_key()
-                if not private_key:
-                    print("❌ Failed to get private key")
-                    return None
-                
-                # Sign and send transaction
-                signed_txn = self.web3.eth.account.sign_transaction(transaction, private_key=private_key)
-                tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                
-                # Wait for transaction receipt
-                tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-                
-                # Get the file ID from the event
-                file_id = self.contract.functions.fileCounter().call()
-                
-                return {
-                    "file_id": file_id,
-                    "transaction_hash": tx_receipt.transactionHash.hex(),
-                    "status": "success"
-                }
-                
-            except Exception as e:
-                print(f"Error uploading file to blockchain: {e}")
-                print(f"Error type: {type(e).__name__}")
-                import traceback
-                print(f"Full traceback: {traceback.format_exc()}")
-                return None
-        return None
-    
-    def get_file_record(self, file_id):
-        """Get file record from blockchain"""
-        if self.contract and self.is_connected:
-            try:
-                file_data = self.contract.functions.getFile(file_id).call()
-                
-                return {
-                    "file_id": file_id,
-                    "file_name": file_data[0],
-                    "file_hash": file_data[1],
-                    "ipfs_hash": file_data[2],
-                    "file_type": file_data[3],
-                    "file_size": file_data[4],
-                    "uploaded_by": file_data[5],
-                    "patient_id": file_data[6],
-                    "timestamp": file_data[7],
-                    "is_valid": file_data[8],
-                    "metadata": file_data[9]
-                }
-                
-            except Exception as e:
-                print(f"Error getting file record: {e}")
-                return None
-        return None
-    
-    def verify_file_on_blockchain(self, file_id, current_hash, notes):
-        """Verify file on blockchain"""
-        if self.contract and self.account and self.is_connected:
-            try:
-                # Build transaction
-                transaction = self.contract.functions.verifyFile(
-                    file_id,
-                    current_hash,
-                    notes
-                ).build_transaction({
-                    'from': self.account,
-                    'gas': 500000,  # Increased gas limit
-                    'gasPrice': self.web3.eth.gas_price,
-                    'nonce': self.web3.eth.get_transaction_count(self.account)
-                })
-                
-                # Sign and send transaction
-                signed_txn = self.web3.eth.account.sign_transaction(transaction, private_key=self._get_private_key())
-                tx_hash = self.web3.eth.send_raw_transaction(signed_txn.rawTransaction)
-                
-                # Wait for transaction receipt
-                tx_receipt = self.web3.eth.wait_for_transaction_receipt(tx_hash)
-                
-                # Get the verification log ID
-                log_id = self.contract.functions.verificationCounter().call()
-                
-                return {
-                    "log_id": log_id,
-                    "is_match": True,  # The contract returns the actual result
-                    "status": "success"
-                }
-                
-            except Exception as e:
-                print(f"Error verifying file: {e}")
-                return None
-        return None
-    
-    def get_user_files(self, user_address):
-        """Get files uploaded by user"""
-        if self.contract and self.is_connected:
-            try:
-                file_ids = self.contract.functions.getUserFiles(user_address).call()
-                return file_ids
-            except Exception as e:
-                print(f"Error getting user files: {e}")
-                return []
-        return []
-    
-    def get_file_verification_logs(self, file_id):
-        """Get verification logs for file"""
-        if self.contract and self.is_connected:
-            try:
-                # This is a simplified implementation
-                # In a real scenario, you'd need to iterate through logs
-                total_verifications = self.contract.functions.verificationCounter().call()
-                logs = []
-                
-                for log_id in range(1, total_verifications + 1):
-                    try:
-                        log_data = self.contract.functions.getVerificationLog(log_id).call()
-                        if log_data[0] == file_id:  # log_data[0] is fileId
-                            logs.append({
-                                "log_id": log_id,
-                                "file_id": log_data[0],
-                                "original_hash": log_data[1],
-                                "verified_hash": log_data[2],
-                                "is_match": log_data[3],
-                                "verified_by": log_data[4],
-                                "timestamp": log_data[5],
-                                "notes": log_data[6]
-                            })
-                    except:
-                        continue
-                
-                return logs
-                
-            except Exception as e:
-                print(f"Error getting verification logs: {e}")
-                return []
-        return []
+            signed = self.w3.eth.account.sign_transaction(tx, private_key=self._key)
+            tx_hash = self.w3.eth.send_raw_transaction(signed.raw_transaction)
+            receipt = self.w3.eth.wait_for_transaction_receipt(tx_hash, timeout=self.receipt_timeout)
+        except BlockchainUnavailable as exc:
+            return ChainResult("unavailable", error=str(exc))
+        except Exception as exc:  # revert at estimate time, RPC error, timeout ...
+            log.warning("chain transaction failed: %s", type(exc).__name__)
+            return ChainResult("failed", error=f"{type(exc).__name__}: {exc}"[:300])
 
-    # ------------------------------------------------------------------
-    # GDPR / Consent helpers (best-effort; no contract required to run)
-    # ------------------------------------------------------------------
+        tx_hex = "0x" + bytes(tx_hash).hex()
+        if receipt["status"] != 1:
+            return ChainResult("failed", tx_hash=tx_hex, error="transaction reverted")
+        object_id = None
+        if event_name:
+            events = getattr(contract.events, event_name)().process_receipt(receipt)
+            if events:
+                args = events[0]["args"]
+                object_id = int(args.get("fileId", args.get("consentId", 0)) or 0) or None
+        return ChainResult("anchored", tx_hash=tx_hex, object_id=object_id)
 
-    def _load_contract_by_name(self, contract_name: str):
-        """
-        Load an auxiliary contract (e.g. GDPRComplianceContract) from
-        Truffle build artifacts.  Returns a web3 Contract instance or None.
-        """
-        if not self.is_connected:
-            self.connect_to_ganache()
-        build_path = os.path.join(os.getcwd(), "build", "contracts", f"{contract_name}.json")
-        if not os.path.exists(build_path):
-            return None
-        with open(build_path) as f:
-            data = json.load(f)
-        abi = data.get("abi")
-        networks = data.get("networks", {})
-        if not networks:
-            return None
-        latest = max(networks.keys(), key=int)
-        address = networks[latest].get("address")
-        if not abi or not address:
-            return None
-        return self.web3.eth.contract(address=address, abi=abi)
-
-    def emit_erasure_event(self, did: str, ipfs_cid: str) -> bool:
-        """
-        Call GDPRComplianceContract.requestErasure(ipfsCid) on behalf of *did*.
-        Returns True if the transaction was mined, False otherwise.
-        """
+    @staticmethod
+    def _guard(call):
         try:
-            contract = self._load_contract_by_name("GDPRComplianceContract")
-            if not contract or not self.account:
-                return False
-            pk = self._get_private_key()
-            if not pk:
-                return False
-            tx = contract.functions.requestErasure(ipfs_cid).build_transaction({
-                "from": self.account,
-                "gas": 200_000,
-                "gasPrice": self.web3.eth.gas_price,
-                "nonce": self.web3.eth.get_transaction_count(self.account),
-            })
-            signed = self.web3.eth.account.sign_transaction(tx, private_key=pk)
-            tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            print(f"✅ On-chain erasure event emitted for DID {did}")
-            return True
-        except Exception as e:
-            print(f"⚠️  emit_erasure_event failed (best-effort): {e}")
-            return False
+            return call()
+        except ValueError as exc:
+            return ChainResult("failed", error=f"invalid input: {exc}")
 
-    def grant_consent(self, recipient: str, data_type: str, purpose_hash: str) -> bool:
-        """
-        Call ConsentContract.grantConsent(recipient, dataType, purposeHash).
-        Returns True on success.
-        """
-        try:
-            contract = self._load_contract_by_name("ConsentContract")
-            if not contract or not self.account:
-                return False
-            pk = self._get_private_key()
-            if not pk:
-                return False
-            tx = contract.functions.grantConsent(
-                recipient, data_type, purpose_hash
-            ).build_transaction({
-                "from": self.account,
-                "gas": 200_000,
-                "gasPrice": self.web3.eth.gas_price,
-                "nonce": self.web3.eth.get_transaction_count(self.account),
-            })
-            signed = self.web3.eth.account.sign_transaction(tx, private_key=pk)
-            tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            return True
-        except Exception as e:
-            print(f"⚠️  grant_consent failed (best-effort): {e}")
-            return False
+    # ------------------------------------------------------------------ files
+    def anchor_file(self, public_id: str, digest_hex: str) -> ChainResult:
+        def go():
+            c = self.contracts["FileVerificationContract"]
+            return self._send(c.functions.anchorFile(
+                _bytes32(public_id, name="public_id"), _bytes32(digest_hex, name="digest")),
+                "FileAnchored", c)
+        return self._guard(go)
 
-    def revoke_consent(self, consent_id: int) -> bool:
-        """
-        Call ConsentContract.revokeConsent(consentId).
-        Returns True on success.
-        """
+    def record_file_verification(self, chain_file_id: int, is_match: bool) -> ChainResult:
+        c = self.contracts["FileVerificationContract"]
+        res = self._send(c.functions.recordVerification(int(chain_file_id), bool(is_match)))
+        res.match = bool(is_match)
+        return res
+
+    def get_file_anchor(self, chain_file_id: int) -> dict | None:
+        """Read-only. Returns None when unknown / chain unreachable."""
         try:
-            contract = self._load_contract_by_name("ConsentContract")
-            if not contract or not self.account:
-                return False
-            pk = self._get_private_key()
-            if not pk:
-                return False
-            tx = contract.functions.revokeConsent(consent_id).build_transaction({
-                "from": self.account,
-                "gas": 150_000,
-                "gasPrice": self.web3.eth.gas_price,
-                "nonce": self.web3.eth.get_transaction_count(self.account),
-            })
-            signed = self.web3.eth.account.sign_transaction(tx, private_key=pk)
-            tx_hash = self.web3.eth.send_raw_transaction(signed.raw_transaction)
-            self.web3.eth.wait_for_transaction_receipt(tx_hash)
-            return True
-        except Exception as e:
-            print(f"⚠️  revoke_consent failed (best-effort): {e}")
-            return False
+            pub, digest, at, ver, mis = self.contracts["FileVerificationContract"] \
+                .functions.getAnchor(int(chain_file_id)).call()
+        except Exception:
+            return None
+        return {"public_id": pub.hex(), "digest": digest.hex(), "anchored_at": at,
+                "verifications": ver, "mismatches": mis}
+
+    # --------------------------------------------------------------- consents
+    def grant_consent(self, did: str, recipient: str, data_type: str,
+                      purpose_hash: str) -> ChainResult:
+        def go():
+            from web3 import Web3
+            c = self.contracts["ConsentContract"]
+            return self._send(c.functions.grantConsent(
+                address_from_did(did), Web3.to_checksum_address(recipient), data_type,
+                _bytes32(purpose_hash, name="purpose_hash")), "ConsentGranted", c)
+        return self._guard(go)
+
+    def revoke_consent(self, chain_consent_id: int) -> ChainResult:
+        c = self.contracts["ConsentContract"]
+        return self._send(c.functions.revokeConsent(int(chain_consent_id)))
+
+    def has_consent(self, did: str, recipient: str, data_type: str) -> bool | None:
+        """Read-only chain view; None if it cannot be determined."""
+        try:
+            from web3 import Web3
+            return bool(self.contracts["ConsentContract"].functions.hasConsent(
+                address_from_did(did), Web3.to_checksum_address(recipient), data_type).call())
+        except Exception:
+            return None
+
+    # ---------------------------------------------------------------- erasure
+    def record_erasure(self, erasure_ref: str) -> ChainResult:
+        def go():
+            c = self.contracts["ErasureLogContract"]
+            return self._send(c.functions.recordErasure(_bytes32(erasure_ref, name="erasure_ref")))
+        return self._guard(go)
