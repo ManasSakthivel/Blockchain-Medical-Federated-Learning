@@ -38,5 +38,5 @@ jobs:
       - name: Tests (includes Solidity tests on the in-memory eth-tester EVM; no Ganache)
         env:
           SECRET_KEY: ci-only-not-a-secret-0123456789abcdef0123456789abcdef
-          DATABASE_URL: sqlite:///:memory:
+          DATABASE_URL: "sqlite:///:memory:"
         run: pytest tests -q
